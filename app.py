@@ -1,3 +1,4 @@
+from sqlalchemy import or_ # הוסף שורה זו בראש הקובץ, יחד עם שאר ה-import-ים
 import os
 import datetime
 from flask import Flask, render_template, request, redirect, url_for
@@ -30,6 +31,7 @@ class Contact(db.Model):
 class Activity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.Text, nullable=False)
+    source = db.Column(db.String(100)) # לדוגמה: "טופס צור קשר באתר", "קמפיין פייסבוק"
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
     # קישור לאיש הקשר הספציפי באמצעות מפתח זר
     contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
@@ -76,3 +78,56 @@ def add_activity(contact_id):
         db.session.add(new_activity)
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact.id))
+
+@app.route('/api/lead', methods=['POST'])
+def handle_lead():
+    """
+    נקודת קצה לקליטת לידים חדשים.
+    מקבלת JSON עם פרטי הליד, מוצאת איש קשר קיים או יוצרת חדש,
+    ומוסיפה לו פעילות חדשה עם פרטי הפנייה.
+    """
+    data = request.get_json()
+    if not data:
+        return {"error": "Invalid request. Expecting JSON data."}, 400
+
+    # איסוף הנתונים מהבקשה
+    name = data.get('name')
+    email = data.get('email')
+    phone = data.get('phone')
+    message = data.get('message', '') # הודעה היא אופציונלית
+    source = data.get('source', 'לא ידוע') # מקור הוא אופציונלי
+
+    # תנאי מינימום: חייב להיות לפחות טלפון או אימייל
+    if not email and not phone:
+        return {"error": "Either email or phone is required to create a lead."}, 400
+
+    contact = None
+    # לוגיקת החיפוש: מצא איש קשר אם יש התאמה במייל או בטלפון (בהנחה שהם לא ריקים)
+    if email:
+        contact = Contact.query.filter_by(email=email).first()
+    if not contact and phone:
+        contact = Contact.query.filter_by(phone=phone).first()
+
+    # אם לא נמצא איש קשר, ניצור אחד חדש
+    if not contact:
+        # אם אין שם, נשתמש במייל או בטלפון כשם זמני
+        if not name:
+            name = email or phone
+        
+        contact = Contact(name=name, email=email, phone=phone)
+        db.session.add(contact)
+        # חשוב לבצע commit כאן כדי שה-ID של איש הקשר החדש יהיה זמין
+        db.session.commit() 
+    
+    # יצירת הפעילות (ההתקשרות) ותיעוד המקור וההודעה
+    activity_description = f"פנייה חדשה ממקור: {source}\n treść wiadomości: {message}"
+    
+    new_activity = Activity(
+        description=activity_description,
+        source=source,
+        contact_id=contact.id
+    )
+    db.session.add(new_activity)
+    db.session.commit()
+
+    return {"success": True, "message": "Lead processed successfully.", "contact_id": contact.id}, 201
