@@ -2,13 +2,24 @@
 
 {% block content %}
   <h1>רשימת אנשי קשר</h1>
+
+  <div style="margin-bottom: 20px;">
+    <strong>סנן לפי סוג:</strong>
+    <a href="{{ url_for('index') }}" style="margin-right: 10px; text-decoration: {% if not active_filter %}none{% else %}underline{% endif %};">הכל</a>
+    {% for c_type in contact_types %}
+      <a href="{{ url_for('index', contact_type_id=c_type.id) }}" style="margin-right: 10px; text-decoration: {% if active_filter == c_type.id %}none{% else %}underline{% endif %};">{{ c_type.name }}</a>
+    {% endfor %}
+  </div>
+  
   <table>
     <thead>
       <tr>
         <th>שם</th>
         <th>אימייל</th>
         <th>טלפון</th>
+        <th>סוג</th>
         <th>סטטוס</th>
+        <th>תאריך יצירה</th>
       </tr>
     </thead>
     <tbody>
@@ -17,11 +28,13 @@
         <td><a href="{{ url_for('contact_detail', contact_id=contact.id) }}">{{ contact.name }}</a></td>
         <td>{{ contact.email }}</td>
         <td>{{ contact.phone }}</td>
-        <td>{{ contact.status }}</td>
+        <td>{{ contact.contact_type.name if contact.contact_type else 'לא שויך' }}</td>
+        <td>{{ contact.status.name if contact.status else 'לא שויך' }}</td>
+        <td>{{ contact.created_at.strftime('%d-%m-%Y') }}</td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="4">עדיין אין אנשי קשר במערכת.</td>
+        <td colspan="6">לא נמצאו אנשי קשר התואמים לסינון.</td>
       </tr>
       {% endfor %}
     </tbody>

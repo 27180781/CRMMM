@@ -4,7 +4,7 @@ import datetime
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-
+from sqlalchemy import MetaData
 # 1. הגדרת האפליקציה ומסד הנתונים
 app = Flask(__name__)
 # קריאת כתובת מסד הנתונים ממשתנה סביבה (לסביבת פרודקשן)
@@ -12,7 +12,18 @@ app = Flask(__name__)
 database_url = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+# --- הוסף את הקוד הבא ---
+# הגדרת "מוסכמת שמות" כדי למנוע שגיאות ב-SQLite
+metadata = MetaData(
+    naming_convention={
+        "ix": 'ix_%(column_0_label)s',
+        "uq": "uq_%(table_name)s_%(column_0_name)s",
+        "ck": "ck_%(table_name)s_%(constraint_name)s",
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+        "pk": "pk_%(table_name)s"
+    }
+)
+db = SQLAlchemy(app, metadata=metadata)# -------------------------
 migrate = Migrate(app, db) # אתחול של Flask-Migrate
 
 # 2. הגדרת מודלים (טבלאות מסד הנתונים)
@@ -21,6 +32,8 @@ class Contact(db.Model):
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True)
     phone = db.Column(db.String(20))
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 
     # שדות חדשים המקשרים לטבלאות ההגדרות
     contact_type_id = db.Column(db.Integer, db.ForeignKey('contact_type.id'), nullable=True)
@@ -66,13 +79,38 @@ class Activity(db.Model):
 
     def __repr__(self):
         return f'<Activity {self.id} for contact {self.contact_id}>'
+    
+class SavedView(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    # שדה JSON גמיש לשמירת כל הגדרות הסינון והמיון
+    filters = db.Column(db.JSON, nullable=False) 
+
+    def __repr__(self):
+        return self.name
 
 # 3. הגדרת נתיבים (Routes) ופעולות
 @app.route('/')
 def index():
-    """הדף הראשי - מציג את כל אנשי הקשר"""
-    contacts = Contact.query.order_by(Contact.name).all()
-    return render_template('index.html', contacts=contacts)
+    """הדף הראשי - מציג את כל אנשי הקשר, עם יכולות סינון"""
+    # התחלת שאילתה בסיסית
+    query = Contact.query
+
+    # קבלת פרמטר סינון מסוג רישום מהכתובת (URL)
+    contact_type_filter = request.args.get('contact_type_id', type=int)
+    if contact_type_filter:
+        query = query.filter(Contact.contact_type_id == contact_type_filter)
+
+    # סידור ברירת מחדל: מהחדש לישן
+    contacts = query.order_by(Contact.created_at.desc()).all()
+    
+    # שליפת כל סוגי הרישום כדי להציג אותם ככפתורי סינון
+    contact_types = ContactType.query.all()
+    
+    return render_template('index.html', 
+                           contacts=contacts, 
+                           contact_types=contact_types,
+                           active_filter=contact_type_filter)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_contact():
