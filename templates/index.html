@@ -1,42 +1,100 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <h1>רשימת אנשי קשר</h1>
+  <h1>דשבורד ראשי</h1>
 
-  <div style="margin-bottom: 20px;">
-    <strong>סנן לפי סוג:</strong>
-    <a href="{{ url_for('index') }}" style="margin-right: 10px; text-decoration: {% if not active_filter %}none{% else %}underline{% endif %};">הכל</a>
-    {% for c_type in contact_types %}
-      <a href="{{ url_for('index', contact_type_id=c_type.id) }}" style="margin-right: 10px; text-decoration: {% if active_filter == c_type.id %}none{% else %}underline{% endif %};">{{ c_type.name }}</a>
-    {% endfor %}
-  </div>
-  
+  <form method="get" id="filter-form" style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px;">
+    <h3>סינון ומיון</h3>
+    <div style="display: flex; gap: 20px; align-items: flex-end;">
+      <div>
+        <label for="contact_type_id">סוג רישום:</label><br>
+        <select name="contact_type_id" id="contact_type_id">
+          <option value="">הכל</option>
+          {% for c_type in contact_types %}
+            <option value="{{ c_type.id }}" {% if active_type_filter == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="status_id">סטטוסים (ניתן לבחור כמה):</label><br>
+        <select name="status_id" id="status_id" multiple size="4">
+          </select>
+      </div>
+      <div>
+        <label for="sort_by">סדר לפי:</label><br>
+        <select name="sort_by" id="sort_by">
+          <option value="created_at_desc" {% if active_sort == 'created_at_desc' %}selected{% endif %}>תאריך יצירה (מהחדש לישן)</option>
+          <option value="created_at_asc" {% if active_sort == 'created_at_asc' %}selected{% endif %}>תאריך יצירה (מהישן לחדש)</option>
+          <option value="updated_at_desc" {% if active_sort == 'updated_at_desc' %}selected{% endif %}>עדכון אחרון (מהחדש לישן)</option>
+          <option value="updated_at_asc" {% if active_sort == 'updated_at_asc' %}selected{% endif %}>עדכון אחרון (מהישן לחדש)</option>
+        </select>
+      </div>
+      <div>
+        <button type="submit">סנן</button>
+      </div>
+    </div>
+  </form>
+
   <table>
     <thead>
       <tr>
         <th>שם</th>
-        <th>אימייל</th>
-        <th>טלפון</th>
         <th>סוג</th>
         <th>סטטוס</th>
         <th>תאריך יצירה</th>
+        <th>תאריך עדכון אחרון</th>
       </tr>
     </thead>
     <tbody>
       {% for contact in contacts %}
       <tr>
         <td><a href="{{ url_for('contact_detail', contact_id=contact.id) }}">{{ contact.name }}</a></td>
-        <td>{{ contact.email }}</td>
-        <td>{{ contact.phone }}</td>
-        <td>{{ contact.contact_type.name if contact.contact_type else 'לא שויך' }}</td>
-        <td>{{ contact.status.name if contact.status else 'לא שויך' }}</td>
-        <td>{{ contact.created_at.strftime('%d-%m-%Y') }}</td>
+        <td>{{ contact.contact_type.name if contact.contact_type else '' }}</td>
+        <td>{{ contact.status.name if contact.status else '' }}</td>
+        <td>{{ contact.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+        <td>{{ contact.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6">לא נמצאו אנשי קשר התואמים לסינון.</td>
+        <td colspan="5">לא נמצאו תוצאות התואמות לסינון.</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <script>
+    const allStatuses = [
+      {% for status in all_statuses %}
+        { id: {{ status.id }}, name: '{{ status.name }}', type_id: {{ status.contact_type_id }} },
+      {% endfor %}
+    ];
+    
+    const activeStatusFilter = {{ active_status_filter|tojson }};
+
+    const typeSelect = document.getElementById('contact_type_id');
+    const statusSelect = document.getElementById('status_id');
+
+    function updateStatusOptions() {
+      const selectedTypeId = typeSelect.value;
+      statusSelect.innerHTML = ''; // נקה אפשרויות קיימות
+
+      // אם לא נבחר סוג, הצג את כל הסטטוסים
+      const statusesToShow = selectedTypeId ? allStatuses.filter(s => s.type_id.toString() === selectedTypeId) : allStatuses;
+
+      statusesToShow.forEach(status => {
+        const option = document.createElement('option');
+        option.value = status.id;
+        option.textContent = status.name;
+        if (activeStatusFilter.includes(status.id)) {
+            option.selected = true;
+        }
+        statusSelect.appendChild(option);
+      });
+    }
+
+    typeSelect.addEventListener('change', updateStatusOptions);
+    
+    // טען את האפשרויות הנכונות בפתיחת הדף
+    document.addEventListener('DOMContentLoaded', updateStatusOptions);
+  </script>
 {% endblock %}

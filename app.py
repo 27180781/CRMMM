@@ -93,25 +93,43 @@ class SavedView(db.Model):
 @app.route('/')
 def index():
     """הדף הראשי - מציג את כל אנשי הקשר, עם יכולות סינון"""
-    # התחלת שאילתה בסיסית
     query = Contact.query
 
-    # קבלת פרמטר סינון מסוג רישום מהכתובת (URL)
+    # --- לוגיקת סינון ---
     contact_type_filter = request.args.get('contact_type_id', type=int)
     if contact_type_filter:
         query = query.filter(Contact.contact_type_id == contact_type_filter)
 
-    # סידור ברירת מחדל: מהחדש לישן
-    contacts = query.order_by(Contact.created_at.desc()).all()
+    status_filter = request.args.getlist('status_id', type=int) # קבלת רשימת סטטוסים
+    if status_filter:
+        query = query.filter(Contact.status_id.in_(status_filter))
+
+    # --- לוגיקת מיון ---
+    sort_by = request.args.get('sort_by', 'created_at_desc') # ברירת מחדל: תאריך יצירה יורד
+    if sort_by == 'created_at_asc':
+        query = query.order_by(Contact.created_at.asc())
+    elif sort_by == 'updated_at_desc':
+        query = query.order_by(Contact.updated_at.desc())
+    elif sort_by == 'updated_at_asc':
+        query = query.order_by(Contact.updated_at.asc())
+    else: # created_at_desc
+        query = query.order_by(Contact.created_at.desc())
+
+    contacts = query.all()
     
-    # שליפת כל סוגי הרישום כדי להציג אותם ככפתורי סינון
+    # שליפת כל המידע הנדרש עבור טופס הסינון
     contact_types = ContactType.query.all()
+    # שליפת כל הסטטוסים כדי שנוכל לסנן אותם באופן דינמי ב-JavaScript
+    all_statuses = Status.query.all()
     
     return render_template('index.html', 
                            contacts=contacts, 
                            contact_types=contact_types,
-                           active_filter=contact_type_filter)
-
+                           all_statuses=all_statuses,
+                           # העברת ערכי הסינון הנוכחיים חזרה לתבנית
+                           active_type_filter=contact_type_filter,
+                           active_status_filter=status_filter,
+                           active_sort=sort_by)
 @app.route('/add', methods=['GET', 'POST'])
 def add_contact():
     """דף להוספת איש קשר חדש"""
