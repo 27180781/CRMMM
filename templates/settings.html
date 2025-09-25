@@ -1,57 +1,105 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+  .item-list { list-style: none; padding: 0; }
+  .item-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+  .item-actions { display: flex; gap: 10px; }
+  .edit-form { display: none; }
+</style>
+{% endblock %}
+
 {% block content %}
-  <h1>הגדרות מערכת</h1>
-  
-  <hr>
+<div class="dashboard-container">
+    <h1>הגדרות מערכת</h1>
+    <hr>
 
-  <h2>ניהול סוגי רישום</h2>
-  <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px;">
-    <h3>הוסף סוג רישום חדש (לדוגמה: ליד, לקוח, מתעניין)</h3>
-    <form action="{{ url_for('add_contact_type') }}" method="post">
-      <input type="text" name="name" placeholder="שם הסוג" required>
-      <button type="submit">הוסף סוג</button>
-    </form>
-  </div>
-<hr>
-
-  <h2>ניהול סוגי התקשרות</h2>
-  <div style="border: 1px solid #28a745; padding: 15px; margin-bottom: 20px;">
-    <h3>הוסף סוג התקשרות חדש (לדוגמה: שיחת טלפון, מייל נכנס, פגישה)</h3>
-    <form action="{{ url_for('add_activity_type') }}" method="post">
-      <input type="text" name="name" placeholder="שם הסוג" required>
-      <button type="submit">הוסף סוג התקשרות</button>
-    </form>
-    
-    <h4>סוגים קיימים:</h4>
-    <ul>
-      {% for a_type in activity_types %}
-        <li>{{ a_type.name }}</li>
-      {% else %}
-        <li>אין עדיין סוגי התקשרות מוגדרים.</li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% for c_type in contact_types %}
-    <div style="border: 1px solid #007bff; padding: 15px; margin-bottom: 20px;">
-      <h3>סוג: {{ c_type.name }}</h3>
-      
-      <h4>סטטוסים קיימים:</h4>
-      <ul>
-        {% for status in c_type.statuses %}
-          <li>{{ status.name }}</li>
-        {% else %}
-          <li>אין עדיין סטטוסים לסוג זה.</li>
+    <h2>ניהול סוגי רישום</h2>
+    <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px;">
+      <h3>הוסף סוג רישום חדש</h3>
+      <form action="{{ url_for('add_contact_type') }}" method="post">
+        <input type="text" name="name" placeholder="שם הסוג" required>
+        <button type="submit">הוסף סוג</button>
+      </form>
+      <h4>סוגים קיימים:</h4>
+      <ul class="item-list">
+        {% for c_type in contact_types %}
+        <li>
+          <span class="item-name">{{ c_type.name }}</span>
+          <form class="edit-form" action="{{ url_for('edit_setting', item_type='contact_type', item_id=c_type.id) }}" method="post">
+            <input type="text" name="name" value="{{ c_type.name }}" required> <button type="submit">שמור</button>
+          </form>
+          <div class="item-actions">
+            <button type="button" class="edit-btn">ערוך</button>
+            <form action="{{ url_for('delete_setting', item_type='contact_type', item_id=c_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח? פעולה זו תמחק גם את כל הסטטוסים המשויכים.');">
+              <button type="submit">מחק</button>
+            </form>
+          </div>
+        </li>
         {% endfor %}
       </ul>
-      
-      <h4>הוסף סטטוס חדש לסוג '{{ c_type.name }}'</h4>
+    </div>
+
+    {% for c_type in contact_types %}
+    <div style="border: 1px solid #007bff; padding: 15px; margin-bottom: 20px;">
+      <h3>ניהול סטטוסים עבור: {{ c_type.name }}</h3>
       <form action="{{ url_for('add_status') }}" method="post">
         <input type="hidden" name="contact_type_id" value="{{ c_type.id }}">
-        <input type="text" name="name" placeholder="שם הסטטוס" required>
-        <button type="submit">הוסף סטטוס</button>
+        <input type="text" name="name" placeholder="שם סטטוס חדש" required> <button type="submit">הוסף סטטוס</button>
       </form>
+      <ul class="item-list">
+        {% for status in c_type.statuses %}
+        <li>
+          <span class="item-name">{{ status.name }}</span>
+          <form class="edit-form" action="{{ url_for('edit_setting', item_type='status', item_id=status.id) }}" method="post">
+            <input type="text" name="name" value="{{ status.name }}" required> <button type="submit">שמור</button>
+          </form>
+          <div class="item-actions">
+            <button type="button" class="edit-btn">ערוך</button>
+            <form action="{{ url_for('delete_setting', item_type='status', item_id=status.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
+              <button type="submit">מחק</button>
+            </form>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
     </div>
-  {% endfor %}
+    {% endfor %}
 
+    <hr>
+    <h2>ניהול סוגי התקשרות</h2>
+    <div style="border: 1px solid #28a745; padding: 15px; margin-bottom: 20px;">
+      <h3>הוסף סוג התקשרות חדש</h3>
+      <form action="{{ url_for('add_activity_type') }}" method="post">
+        <input type="text" name="name" placeholder="שם הסוג" required> <button type="submit">הוסף</button>
+      </form>
+      <ul class="item-list">
+        {% for a_type in activity_types %}
+        <li>
+          <span class="item-name">{{ a_type.name }}</span>
+          <form class="edit-form" action="{{ url_for('edit_setting', item_type='activity_type', item_id=a_type.id) }}" method="post">
+            <input type="text" name="name" value="{{ a_type.name }}" required> <button type="submit">שמור</button>
+          </form>
+          <div class="item-actions">
+            <button type="button" class="edit-btn">ערוך</button>
+            <form action="{{ url_for('delete_setting', item_type='activity_type', item_id=a_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
+              <button type="submit">מחק</button>
+            </form>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.edit-btn').forEach(button => {
+    button.addEventListener('click', event => {
+        const li = event.target.closest('li');
+        li.querySelector('.item-name').style.display = 'none';
+        li.querySelector('.item-actions').style.display = 'none';
+        li.querySelector('.edit-form').style.display = 'flex';
+    });
+});
+</script>
 {% endblock %}

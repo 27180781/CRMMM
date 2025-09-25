@@ -64,7 +64,12 @@
     <strong>תצוגות מהירות:</strong>
     <a href="{{ url_for('index') }}" class="{% if not request.args.get('view_id') %}active{% endif %}">ברירת מחדל</a>
     {% for view in saved_views %}
-      <a href="{{ url_for('index', view_id=view.id) }}" class="{% if request.args.get('view_id')|int == view.id %}active{% endif %}">{{ view.name }}</a>
+      <div style="display:flex; align-items: center; background-color: #e9ecef; border-radius: 20px; margin: 0 5px;">
+          <a href="{{ url_for('index', view_id=view.id) }}" class="{% if request.args.get('view_id')|int == view.id %}active{% endif %}" style="background:none; padding-right:14px;">{{ view.name }}</a>
+          <form action="{{ url_for('delete_setting', item_type='saved_view', item_id=view.id) }}" method="post" onsubmit="return confirm('האם למחוק את התצוגה?')">
+            <button type="submit" style="border:none; background:transparent; color:red; cursor:pointer; font-size: 1.2em; padding: 0 10px;">&times;</button>
+          </form>
+        </div>
     {% endfor %}
   </div>
 
