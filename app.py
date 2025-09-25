@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import MetaData
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 # 1. הגדרת האפליקציה ומסד הנתונים
 app = Flask(__name__)
 # קריאת כתובת מסד הנתונים ממשתנה סביבה (לסביבת פרודקשן)
@@ -92,20 +93,35 @@ class SavedView(db.Model):
 # 3. הגדרת נתיבים (Routes) ופעולות
 @app.route('/')
 def index():
-    """הדף הראשי - מציג את כל אנשי הקשר, עם יכולות סינון"""
+    """הדף הראשי - מציג את כל אנשי הקשר, עם יכולות סינון וטעינת תצוגות"""
     query = Contact.query
 
-    # --- לוגיקת סינון ---
-    contact_type_filter = request.args.get('contact_type_id', type=int)
+    # אתחול משתני סינון
+    contact_type_filter = None
+    status_filter = []
+    sort_by = 'created_at_desc'
+
+    # בדיקה אם נטענת תצוגה שמורה
+    view_id = request.args.get('view_id', type=int)
+    if view_id:
+        view = SavedView.query.get(view_id)
+        if view:
+            filters = view.filters
+            contact_type_filter = filters.get('contact_type_id')
+            status_filter = filters.get('status_id', [])
+            sort_by = filters.get('sort_by', 'created_at_desc')
+    else:
+        # אם לא, קבל את הסינונים מה-URL כרגיל
+        contact_type_filter = request.args.get('contact_type_id', type=int)
+        status_filter = request.args.getlist('status_id', type=int)
+        sort_by = request.args.get('sort_by', 'created_at_desc')
+
+    # --- החלת לוגיקת הסינון והמיון ---
     if contact_type_filter:
         query = query.filter(Contact.contact_type_id == contact_type_filter)
-
-    status_filter = request.args.getlist('status_id', type=int) # קבלת רשימת סטטוסים
     if status_filter:
         query = query.filter(Contact.status_id.in_(status_filter))
 
-    # --- לוגיקת מיון ---
-    sort_by = request.args.get('sort_by', 'created_at_desc') # ברירת מחדל: תאריך יצירה יורד
     if sort_by == 'created_at_asc':
         query = query.order_by(Contact.created_at.asc())
     elif sort_by == 'updated_at_desc':
@@ -116,17 +132,17 @@ def index():
         query = query.order_by(Contact.created_at.desc())
 
     contacts = query.all()
-    
-    # שליפת כל המידע הנדרש עבור טופס הסינון
+
+    # שליפת כל המידע הנדרש עבור הדף
     contact_types = ContactType.query.all()
-    # שליפת כל הסטטוסים כדי שנוכל לסנן אותם באופן דינמי ב-JavaScript
     all_statuses = Status.query.all()
-    
+    saved_views = SavedView.query.order_by(SavedView.name).all()
+
     return render_template('index.html', 
                            contacts=contacts, 
                            contact_types=contact_types,
                            all_statuses=all_statuses,
-                           # העברת ערכי הסינון הנוכחיים חזרה לתבנית
+                           saved_views=saved_views,
                            active_type_filter=contact_type_filter,
                            active_status_filter=status_filter,
                            active_sort=sort_by)
@@ -192,6 +208,19 @@ def add_status():
     return redirect(url_for('settings'))
 
 # --- סוף הקוד להוספה ---
+@app.route('/api/save_view', methods=['POST'])
+def save_view():
+    """שומר את הגדרות הסינון הנוכחיות כתצוגה חדשה"""
+    data = request.get_json()
+    if not data or not data.get('name') or data.get('filters') is None:
+        return jsonify({'success': False, 'message': 'Missing data'}), 400
+
+    view = SavedView(name=data['name'], filters=data['filters'])
+    db.session.add(view)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'View saved!', 'view': {'id': view.id, 'name': view.name}})
+
 @app.route('/api/lead', methods=['POST'])
 def handle_lead():
     """
