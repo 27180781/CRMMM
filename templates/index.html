@@ -1,21 +1,195 @@
 {% extends "base.html" %}
 
+{% block head %}
+{{ super() }}
+<style>
+  /* --- עיצוב כללי --- */
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7f9;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 25px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  h1, h3 {
+    color: #2c3e50;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 10px;
+    margin-top: 0;
+  }
+
+  a {
+    color: #3498db;
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+
+  a:hover {
+    color: #217dbb;
+    text-decoration: underline;
+  }
+
+  /* --- אזור תצוגות שמורות --- */
+  .saved-views {
+    margin-bottom: 25px;
+    padding: 15px;
+    background-color: #ecf0f1;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  .saved-views strong {
+    color: #34495e;
+  }
+  .saved-views a {
+    background-color: #ffffff;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid #bdc3c7;
+    font-size: 0.9em;
+  }
+   .saved-views a:hover {
+    background-color: #3498db;
+    color: #ffffff;
+    border-color: #3498db;
+    text-decoration: none;
+  }
+
+  /* --- טופס סינון --- */
+  .filter-form {
+    background-color: #fafafa;
+    border: 1px solid #e0e0e0;
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: 6px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    align-items: flex-end;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #555;
+  }
+
+  .form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+    font-size: 1em;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  .btn-primary {
+    background-color: #3498db;
+    color: white;
+  }
+  .btn-primary:hover {
+    background-color: #2980b9;
+  }
+
+  .btn-secondary {
+    background-color: #95a5a6;
+    color: white;
+  }
+  .btn-secondary:hover {
+    background-color: #7f8c8d;
+  }
+
+
+  /* --- טבלת נתונים --- */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+
+  .data-table th, .data-table td {
+    padding: 12px 15px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .data-table thead tr {
+    background-color: #34495e;
+    color: #ffffff;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  .data-table tbody tr:hover {
+    background-color: #f1f1f1;
+    cursor: pointer;
+  }
+
+  .data-table .empty-row td {
+      text-align: center;
+      padding: 30px;
+      color: #777;
+      font-size: 1.1em;
+  }
+
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="container">
   <h1>דשבורד ראשי</h1>
 
-  <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f8ff;">
+  <div class="saved-views">
     <strong>תצוגות שמורות:</strong>
-    <a href="{{ url_for('index') }}" style="margin: 0 10px;">תצוגת ברירת מחדל</a>
+    <a href="{{ url_for('index') }}">תצוגת ברירת מחדל</a>
     {% for view in saved_views %}
-      <a href="{{ url_for('index', view_id=view.id) }}" style="margin: 0 10px;">{{ view.name }}</a>
+      <a href="{{ url_for('index', view_id=view.id) }}">{{ view.name }}</a>
     {% endfor %}
   </div>
 
-  <form method="get" id="filter-form" style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px;">
+  <form method="get" id="filter-form" class="filter-form">
     <h3>סינון ומיון</h3>
-    <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end;">
-      <div>
-        <label for="contact_type_id">סוג רישום:</label><br>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="contact_type_id">סוג רישום:</label>
         <select name="contact_type_id" id="contact_type_id">
           <option value="">הכל</option>
           {% for c_type in contact_types %}
@@ -23,13 +197,13 @@
           {% endfor %}
         </select>
       </div>
-      <div>
-        <label for="status_id">סטטוסים (ניתן לבחור כמה):</label><br>
+      <div class="form-group">
+        <label for="status_id">סטטוסים (ניתן לבחור כמה):</label>
         <select name="status_id" id="status_id" multiple size="4">
           </select>
       </div>
-      <div>
-        <label for="sort_by">סדר לפי:</label><br>
+      <div class="form-group">
+        <label for="sort_by">סדר לפי:</label>
         <select name="sort_by" id="sort_by">
           <option value="created_at_desc" {% if active_sort == 'created_at_desc' %}selected{% endif %}>תאריך יצירה (חדש לישן)</option>
           <option value="created_at_asc" {% if active_sort == 'created_at_asc' %}selected{% endif %}>תאריך יצירה (ישן לחדש)</option>
@@ -37,14 +211,14 @@
           <option value="updated_at_asc" {% if active_sort == 'updated_at_asc' %}selected{% endif %}>עדכון אחרון (ישן לחדש)</option>
         </select>
       </div>
-      <div>
-        <button type="submit">סנן</button>
-        <button type="button" id="save-view-btn" style="margin-right: 10px;">שמור תצוגה</button>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">סנן</button>
+        <button type="button" id="save-view-btn" class="btn btn-secondary">שמור תצוגה</button>
       </div>
     </div>
   </form>
 
-  <table>
+  <table class="data-table">
     <thead>
       <tr>
         <th>שם</th>
@@ -64,13 +238,13 @@
         <td>{{ contact.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
       </tr>
       {% else %}
-      <tr>
+      <tr class="empty-row">
         <td colspan="5">לא נמצאו תוצאות התואמות לסינון.</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-
+</div>
   <script>
     // --- קוד JavaScript הקודם נשאר זהה ---
     const allStatuses = [
