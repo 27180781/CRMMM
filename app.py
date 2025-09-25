@@ -94,8 +94,14 @@ def index():
     contacts = query.all()
     contact_types, all_statuses, saved_views = ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
     
-    return render_template('index.html', **locals())
-
+return render_template('index.html', 
+                       contacts=contacts, 
+                       contact_types=contact_types,
+                       all_statuses=all_statuses,
+                       saved_views=saved_views,
+                       active_type_filter=contact_type_filter,
+                       active_status_filter=status_filter,
+                       active_sort=sort_by)
 # --- !!! הנה הפונקציה שהוחזרה !!! ---
 @app.route('/add', methods=['GET', 'POST'])
 def add_contact():
