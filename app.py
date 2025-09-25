@@ -94,7 +94,7 @@ def index():
     contacts = query.all()
     contact_types, all_statuses, saved_views = ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
     
-return render_template('index.html', 
+    return render_template('index.html', 
                        contacts=contacts, 
                        contact_types=contact_types,
                        all_statuses=all_statuses,
