@@ -27,6 +27,10 @@ def init_db_command():
     """יוצר את טבלאות מסד הנתונים."""
     db.create_all()
     print('Initialized the database.')
+# יוצר את טבלאות מסד הנתונים באופן אוטומטי אם הן לא קיימות
+with app.app_context():
+    db.create_all()
+# -------------------------
 
 # 4. הגדרת נתיבים (Routes) באפליקציה
 @app.route('/')
