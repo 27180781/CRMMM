@@ -129,7 +129,7 @@ def add_contact():
 @app.route('/contact/<int:contact_id>')
 def contact_detail(contact_id):
     """מציג כרטיס לקוח עם כל הפרטים והפעילויות"""
-    contact = Contact.query.get_or_4404(contact_id)
+    contact = Contact.query.get_or_404(contact_id)
     # מציג את הפעילויות מהחדשה לישנה
     activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
     return render_template('contact_detail.html', contact=contact, activities=activities)
