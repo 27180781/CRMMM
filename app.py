@@ -21,9 +21,37 @@ class Contact(db.Model):
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True)
     phone = db.Column(db.String(20))
-    status = db.Column(db.String(50), default='ליד חדש')
-    # יצירת קשר לפעילויות - לכל איש קשר יש רשימה של פעילויות
+
+    # שדות חדשים המקשרים לטבלאות ההגדרות
+    contact_type_id = db.Column(db.Integer, db.ForeignKey('contact_type.id'), nullable=True)
+    status_id = db.Column(db.Integer, db.ForeignKey('status.id'), nullable=True)
+
+    # קשרים שיאפשרו לנו לגשת לאובייקטים עצמם בקלות
+    contact_type = db.relationship('ContactType', backref='contacts')
+    status = db.relationship('Status', backref='contacts')
+
     activities = db.relationship('Activity', backref='contact', lazy=True, cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f'<Contact {self.name}>'
+
+# --- הוסף מודלים חדשים ---
+class ContactType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    statuses = db.relationship('Status', backref='contact_type', lazy=True, cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return self.name
+
+class Status(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    contact_type_id = db.Column(db.Integer, db.ForeignKey('contact_type.id'), nullable=False)
+
+    def __repr__(self):
+        return self.name
+# --------------------------
 
     def __repr__(self):
         return f'<Contact {self.name}>'
@@ -78,7 +106,36 @@ def add_activity(contact_id):
         db.session.add(new_activity)
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact.id))
+# --- הוסף את הקוד הזה ---
 
+@app.route('/settings')
+def settings():
+    """מציג את עמוד ההגדרות הראשי"""
+    contact_types = ContactType.query.order_by(ContactType.name).all()
+    return render_template('settings.html', contact_types=contact_types)
+
+@app.route('/settings/add_contact_type', methods=['POST'])
+def add_contact_type():
+    """מוסיף סוג רישום חדש"""
+    name = request.form.get('name')
+    if name:
+        new_type = ContactType(name=name)
+        db.session.add(new_type)
+        db.session.commit()
+    return redirect(url_for('settings'))
+
+@app.route('/settings/add_status', methods=['POST'])
+def add_status():
+    """מוסיף סטטוס חדש לסוג רישום קיים"""
+    name = request.form.get('name')
+    contact_type_id = request.form.get('contact_type_id')
+    if name and contact_type_id:
+        new_status = Status(name=name, contact_type_id=contact_type_id)
+        db.session.add(new_status)
+        db.session.commit()
+    return redirect(url_for('settings'))
+
+# --- סוף הקוד להוספה ---
 @app.route('/api/lead', methods=['POST'])
 def handle_lead():
     """
