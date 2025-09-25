@@ -69,6 +69,12 @@ class Status(db.Model):
 
     def __repr__(self):
         return f'<Contact {self.name}>'
+class ActivityType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+    def __repr__(self):
+        return self.name
 
 class Activity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -77,6 +83,10 @@ class Activity(db.Model):
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
     # קישור לאיש הקשר הספציפי באמצעות מפתח זר
     contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
+        # --- הוסף את שני השדות הבאים ---
+    activity_type_id = db.Column(db.Integer, db.ForeignKey('activity_type.id'), nullable=True)
+    activity_type = db.relationship('ActivityType', backref='activities')
+
 
     def __repr__(self):
         return f'<Activity {self.id} for contact {self.contact_id}>'
@@ -164,28 +174,64 @@ def add_contact():
 def contact_detail(contact_id):
     """מציג כרטיס לקוח עם כל הפרטים והפעילויות"""
     contact = Contact.query.get_or_404(contact_id)
-    # מציג את הפעילויות מהחדשה לישנה
     activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
-    return render_template('contact_detail.html', contact=contact, activities=activities)
 
+    # שליפת נתונים עבור טפסי עריכה
+    contact_types = ContactType.query.all()
+    statuses = Status.query.all() # נסנן אותם ב-JS
+    activity_types = ActivityType.query.all()
+
+    return render_template('contact_detail.html', 
+                           contact=contact, 
+                           activities=activities,
+                           contact_types=contact_types,
+                           statuses=statuses,
+                           activity_types=activity_types)
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
 def add_activity(contact_id):
     """מוסיף רשומת פעילות חדשה לאיש קשר"""
-    contact = Contact.query.get_or_404(contact_id)
     description = request.form['description']
+    activity_type_id = request.form.get('activity_type_id', type=int)
+
     if description:
-        new_activity = Activity(description=description, contact_id=contact.id)
+        new_activity = Activity(
+            description=description, 
+            contact_id=contact_id,
+            activity_type_id=activity_type_id
+        )
         db.session.add(new_activity)
         db.session.commit()
-    return redirect(url_for('contact_detail', contact_id=contact.id))
-# --- הוסף את הקוד הזה ---
-
+    return redirect(url_for('contact_detail', contact_id=contact_id))
 @app.route('/settings')
 def settings():
     """מציג את עמוד ההגדרות הראשי"""
     contact_types = ContactType.query.order_by(ContactType.name).all()
-    return render_template('settings.html', contact_types=contact_types)
+    activity_types = ActivityType.query.order_by(ActivityType.name).all() # שורה חדשה
+    return render_template('settings.html', 
+                           contact_types=contact_types, 
+                           activity_types=activity_types) # הוספה חדשה
+@app.route('/settings/add_activity_type', methods=['POST'])
+def add_activity_type():
+    """מוסיף סוג התקשרות חדש"""
+    name = request.form.get('name')
+    if name:
+        new_type = ActivityType(name=name)
+        db.session.add(new_type)
+        db.session.commit()
+    return redirect(url_for('settings'))
+@app.route('/contact/<int:contact_id>/edit', methods=['POST'])
+def edit_contact(contact_id):
+    """מעדכן את פרטי איש הקשר"""
+    contact = Contact.query.get_or_404(contact_id)
 
+    contact.name = request.form.get('name')
+    contact.email = request.form.get('email')
+    contact.phone = request.form.get('phone')
+    contact.contact_type_id = request.form.get('contact_type_id', type=int) or None
+    contact.status_id = request.form.get('status_id', type=int) or None
+
+    db.session.commit()
+    return redirect(url_for('contact_detail', contact_id=contact.id))
 @app.route('/settings/add_contact_type', methods=['POST'])
 def add_contact_type():
     """מוסיף סוג רישום חדש"""

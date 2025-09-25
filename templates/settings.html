@@ -13,7 +13,25 @@
       <button type="submit">הוסף סוג</button>
     </form>
   </div>
+<hr>
 
+  <h2>ניהול סוגי התקשרות</h2>
+  <div style="border: 1px solid #28a745; padding: 15px; margin-bottom: 20px;">
+    <h3>הוסף סוג התקשרות חדש (לדוגמה: שיחת טלפון, מייל נכנס, פגישה)</h3>
+    <form action="{{ url_for('add_activity_type') }}" method="post">
+      <input type="text" name="name" placeholder="שם הסוג" required>
+      <button type="submit">הוסף סוג התקשרות</button>
+    </form>
+    
+    <h4>סוגים קיימים:</h4>
+    <ul>
+      {% for a_type in activity_types %}
+        <li>{{ a_type.name }}</li>
+      {% else %}
+        <li>אין עדיין סוגי התקשרות מוגדרים.</li>
+      {% endfor %}
+    </ul>
+  </div>
   {% for c_type in contact_types %}
     <div style="border: 1px solid #007bff; padding: 15px; margin-bottom: 20px;">
       <h3>סוג: {{ c_type.name }}</h3>

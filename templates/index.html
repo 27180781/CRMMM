@@ -2,303 +2,379 @@
 
 {% block head %}
 {{ super() }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
+
 <style>
-  /* --- עיצוב כללי --- */
+  :root {
+    --primary-color: #007bff;
+    --primary-hover-color: #0056b3;
+    --secondary-color: #6c757d;
+    --secondary-hover-color: #5a6268;
+    --bg-color: #f8f9fa;
+    --panel-bg-color: #ffffff;
+    --text-color: #343a40;
+    --text-light-color: #6c757d;
+    --border-color: #dee2e6;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    --border-radius: 8px;
+  }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f4f7f9;
-    color: #333;
-    line-height: 1.6;
+    font-family: 'Heebo', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     margin: 0;
-    padding: 20px;
   }
 
-  .container {
-    max-width: 1200px;
-    margin: 20px auto;
+  .dashboard-container {
     padding: 25px;
-    background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    max-width: 1400px;
+    margin: 0 auto;
   }
 
-  h1, h3 {
-    color: #2c3e50;
-    border-bottom: 2px solid #e0e0e0;
-    padding-bottom: 10px;
-    margin-top: 0;
-  }
-
-  a {
-    color: #3498db;
-    text-decoration: none;
-    transition: color 0.3s ease;
-  }
-
-  a:hover {
-    color: #217dbb;
-    text-decoration: underline;
-  }
-
-  /* --- אזור תצוגות שמורות --- */
-  .saved-views {
-    margin-bottom: 25px;
-    padding: 15px;
-    background-color: #ecf0f1;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
-  }
-  .saved-views strong {
-    color: #34495e;
-  }
-  .saved-views a {
-    background-color: #ffffff;
-    padding: 5px 12px;
-    border-radius: 20px;
-    border: 1px solid #bdc3c7;
-    font-size: 0.9em;
-  }
-   .saved-views a:hover {
-    background-color: #3498db;
-    color: #ffffff;
-    border-color: #3498db;
-    text-decoration: none;
-  }
-
-  /* --- טופס סינון --- */
-  .filter-form {
-    background-color: #fafafa;
-    border: 1px solid #e0e0e0;
-    padding: 20px;
-    margin-bottom: 30px;
-    border-radius: 6px;
-  }
-
-  .form-grid {
+  .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    align-items: flex-end;
+    grid-template-columns: 280px 1fr;
+    gap: 25px;
+  }
+
+  /* --- פאנל סינון צדדי --- */
+  .filter-panel {
+    background-color: var(--panel-bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    height: fit-content;
+  }
+
+  .panel-header {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .form-group {
+    margin-bottom: 18px;
   }
 
   .form-group label {
     display: block;
-    margin-bottom: 5px;
-    font-weight: 600;
-    color: #555;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-light-color);
   }
 
   .form-group select {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     background-color: #fff;
-    font-size: 1em;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-
-  .form-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
+  
+  .form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
   }
 
   .btn {
-    padding: 10px 20px;
+    width: 100%;
+    padding: 12px 20px;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 1em;
-    font-weight: 600;
-    transition: background-color 0.3s ease, transform 0.1s ease;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
   .btn:active {
     transform: translateY(1px);
   }
+  
+  .btn .icon {
+    width: 18px;
+    height: 18px;
+  }
 
   .btn-primary {
-    background-color: #3498db;
+    background-color: var(--primary-color);
     color: white;
+    margin-top: 10px;
   }
   .btn-primary:hover {
-    background-color: #2980b9;
+    background-color: var(--primary-hover-color);
   }
 
   .btn-secondary {
-    background-color: #95a5a6;
-    color: white;
+    background-color: transparent;
+    color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    margin-top: 10px;
   }
   .btn-secondary:hover {
-    background-color: #7f8c8d;
+    background-color: #f1f1f1;
+    border-color: #c8c8c8;
   }
 
+  /* --- אזור תוכן ראשי --- */
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+  }
+  
+  .main-content h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+  }
 
-  /* --- טבלת נתונים --- */
+  .content-panel {
+    background-color: var(--panel-bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+  }
+
+  .saved-views {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .saved-views strong {
+    color: var(--text-color);
+    font-weight: 500;
+  }
+  .saved-views a {
+    background-color: #e9ecef;
+    color: var(--text-color);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    text-decoration: none;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  .saved-views a:hover {
+    background-color: var(--primary-color);
+    color: #ffffff;
+  }
+  
+  /* --- טבלה --- */
+  .table-container {
+    overflow-x: auto; /* מאפשר גלילה אופקית במידת הצורך */
+  }
+
   .data-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
   }
 
   .data-table th, .data-table td {
-    padding: 12px 15px;
+    padding: 14px 16px;
     text-align: right;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .data-table thead tr {
-    background-color: #34495e;
-    color: #ffffff;
+    background-color: #f8f9fa;
   }
 
-  .data-table tbody tr:nth-child(even) {
-    background-color: #f9f9f9;
+  .data-table th {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-light-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
+  .data-table tbody tr {
+    transition: background-color 0.2s;
+  }
+  
   .data-table tbody tr:hover {
-    background-color: #f1f1f1;
-    cursor: pointer;
+    background-color: #f1f7ff;
+  }
+  
+  .data-table a {
+    color: var(--primary-color);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .data-table a:hover {
+    text-decoration: underline;
   }
 
-  .data-table .empty-row td {
-      text-align: center;
-      padding: 30px;
-      color: #777;
-      font-size: 1.1em;
+  .empty-row td {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-light-color);
+    font-size: 1.1rem;
+  }
+
+  /* --- רספונסיביות --- */
+  @media (max-width: 992px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="dashboard-container">
   <h1>דשבורד ראשי</h1>
 
-  <div class="saved-views">
-    <strong>תצוגות שמורות:</strong>
-    <a href="{{ url_for('index') }}">תצוגת ברירת מחדל</a>
-    {% for view in saved_views %}
-      <a href="{{ url_for('index', view_id=view.id) }}">{{ view.name }}</a>
-    {% endfor %}
-  </div>
-
-  <form method="get" id="filter-form" class="filter-form">
-    <h3>סינון ומיון</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label for="contact_type_id">סוג רישום:</label>
-        <select name="contact_type_id" id="contact_type_id">
-          <option value="">הכל</option>
-          {% for c_type in contact_types %}
-            <option value="{{ c_type.id }}" {% if active_type_filter == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="status_id">סטטוסים (ניתן לבחור כמה):</label>
-        <select name="status_id" id="status_id" multiple size="4">
+  <div class="dashboard-grid">
+    <aside class="filter-panel">
+      <h3 class="panel-header">סינון ומיון</h3>
+      <form method="get" id="filter-form">
+        <div class="form-group">
+          <label for="contact_type_id">סוג רישום:</label>
+          <select name="contact_type_id" id="contact_type_id">
+            <option value="">הכל</option>
+            {% for c_type in contact_types %}
+              <option value="{{ c_type.id }}" {% if active_type_filter == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
+            {% endfor %}
           </select>
-      </div>
-      <div class="form-group">
-        <label for="sort_by">סדר לפי:</label>
-        <select name="sort_by" id="sort_by">
-          <option value="created_at_desc" {% if active_sort == 'created_at_desc' %}selected{% endif %}>תאריך יצירה (חדש לישן)</option>
-          <option value="created_at_asc" {% if active_sort == 'created_at_asc' %}selected{% endif %}>תאריך יצירה (ישן לחדש)</option>
-          <option value="updated_at_desc" {% if active_sort == 'updated_at_desc' %}selected{% endif %}>עדכון אחרון (חדש לישן)</option>
-          <option value="updated_at_asc" {% if active_sort == 'updated_at_asc' %}selected{% endif %}>עדכון אחרון (ישן לחדש)</option>
-        </select>
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">סנן</button>
-        <button type="button" id="save-view-btn" class="btn btn-secondary">שמור תצוגה</button>
-      </div>
-    </div>
-  </form>
+        </div>
+        <div class="form-group">
+          <label for="status_id">סטטוסים (ניתן לבחור כמה):</label>
+          <select name="status_id" id="status_id" multiple size="5"></select>
+        </div>
+        <div class="form-group">
+          <label for="sort_by">סדר לפי:</label>
+          <select name="sort_by" id="sort_by">
+            <option value="created_at_desc" {% if active_sort == 'created_at_desc' %}selected{% endif %}>תאריך יצירה (חדש לישן)</option>
+            <option value="created_at_asc" {% if active_sort == 'created_at_asc' %}selected{% endif %}>תאריך יצירה (ישן לחדש)</option>
+            <option value="updated_at_desc" {% if active_sort == 'updated_at_desc' %}selected{% endif %}>עדכון אחרון (חדש לישן)</option>
+            <option value="updated_at_asc" {% if active_sort == 'updated_at_asc' %}selected{% endif %}>עדכון אחרון (ישן לחדש)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M3.853 54.87C10.47 40.9 24.54 32 40 32H472c15.46 0 29.53 8.901 36.15 22.87C514.8 66.7 512.2 81.96 501.9 92.28L320 274.3V448c0 12.1-6.852 23.22-17.75 28.59C291.4 481.9 278.4 482.2 267.5 476.5L139.5 412.5C129.5 407.4 128 396.6 128 384.4V274.3L10.12 92.28C-.2132 81.96-2.753 66.7 3.853 54.87z"/></svg>
+          <span>סנן</span>
+        </button>
+        <button type="button" id="save-view-btn" class="btn btn-secondary">
+          <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor"><path d="M433.9 129.9l-83.9-83.9A48 48 0 0 0 316.1 32H48C21.5 32 0 53.5 0 80v352c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V163.9a48 48 0 0 0-14.1-33.9zM224 416c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64zm96-304.5H96V128h224v-16.5z"/></svg>
+          <span>שמור תצוגה</span>
+        </button>
+      </form>
+    </aside>
 
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>שם</th>
-        <th>סוג</th>
-        <th>סטטוס</th>
-        <th>תאריך יצירה</th>
-        <th>תאריך עדכון אחרון</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for contact in contacts %}
-      <tr>
-        <td><a href="{{ url_for('contact_detail', contact_id=contact.id) }}">{{ contact.name }}</a></td>
-        <td>{{ contact.contact_type.name if contact.contact_type else '' }}</td>
-        <td>{{ contact.status.name if contact.status else '' }}</td>
-        <td>{{ contact.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
-        <td>{{ contact.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
-      </tr>
-      {% else %}
-      <tr class="empty-row">
-        <td colspan="5">לא נמצאו תוצאות התואמות לסינון.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <main class="main-content">
+      <div class="content-panel saved-views-panel">
+        <div class="saved-views">
+          <strong>תצוגות שמורות:</strong>
+          <a href="{{ url_for('index') }}">תצוגת ברירת מחדל</a>
+          {% for view in saved_views %}
+            <a href="{{ url_for('index', view_id=view.id) }}">{{ view.name }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      
+      <div class="content-panel table-panel">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>שם</th>
+                <th>סוג</th>
+                <th>סטטוס</th>
+                <th>תאריך יצירה</th>
+                <th>תאריך עדכון אחרון</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for contact in contacts %}
+              <tr>
+                <td><a href="{{ url_for('contact_detail', contact_id=contact.id) }}">{{ contact.name }}</a></td>
+                <td>{{ contact.contact_type.name if contact.contact_type else '' }}</td>
+                <td>{{ contact.status.name if contact.status else '' }}</td>
+                <td>{{ contact.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+                <td>{{ contact.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
+              </tr>
+              {% else %}
+              <tr class="empty-row">
+                <td colspan="5">לא נמצאו תוצאות התואמות לסינון.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
 </div>
-  <script>
-    // --- קוד JavaScript הקודם נשאר זהה ---
-    const allStatuses = [
-      {% for status in all_statuses %}
-        { id: {{ status.id }}, name: '{{ status.name }}', type_id: {{ status.contact_type_id }} },
-      {% endfor %}
-    ];
-    const activeStatusFilter = {{ active_status_filter|tojson }};
-    const typeSelect = document.getElementById('contact_type_id');
-    const statusSelect = document.getElementById('status_id');
-    function updateStatusOptions() {
-      const selectedTypeId = typeSelect.value;
-      statusSelect.innerHTML = '';
-      const statusesToShow = selectedTypeId ? allStatuses.filter(s => s.type_id.toString() === selectedTypeId) : allStatuses;
-      statusesToShow.forEach(status => {
-        const option = document.createElement('option');
-        option.value = status.id;
-        option.textContent = status.name;
-        if (activeStatusFilter.includes(status.id)) {
-            option.selected = true;
+
+<script>
+  // --- קוד JavaScript נשאר זהה לחלוטין ---
+  const allStatuses = [
+    {% for status in all_statuses %}
+      { id: {{ status.id }}, name: '{{ status.name }}', type_id: {{ status.contact_type_id }} },
+    {% endfor %}
+  ];
+  const activeStatusFilter = {{ active_status_filter|tojson }};
+  const typeSelect = document.getElementById('contact_type_id');
+  const statusSelect = document.getElementById('status_id');
+  
+  function updateStatusOptions() {
+    const selectedTypeId = typeSelect.value;
+    statusSelect.innerHTML = '';
+    const statusesToShow = selectedTypeId ? allStatuses.filter(s => s.type_id.toString() === selectedTypeId) : allStatuses;
+    statusesToShow.forEach(status => {
+      const option = document.createElement('option');
+      option.value = status.id;
+      option.textContent = status.name;
+      if (activeStatusFilter.includes(status.id)) {
+          option.selected = true;
+      }
+      statusSelect.appendChild(option);
+    });
+  }
+  
+  typeSelect.addEventListener('change', updateStatusOptions);
+  document.addEventListener('DOMContentLoaded', updateStatusOptions);
+
+  document.getElementById('save-view-btn').addEventListener('click', function() {
+    const viewName = prompt('אנא הכנס שם לתצוגה החדשה:');
+    if (viewName) {
+      const filters = {
+        contact_type_id: document.getElementById('contact_type_id').value ? parseInt(document.getElementById('contact_type_id').value) : null,
+        status_id: Array.from(document.getElementById('status_id').selectedOptions).map(opt => parseInt(opt.value)),
+        sort_by: document.getElementById('sort_by').value
+      };
+
+      fetch('/api/save_view', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: viewName, filters: filters }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          window.location.reload();
+        } else {
+          alert('שגיאה בשמירת התצוגה.');
         }
-        statusSelect.appendChild(option);
       });
     }
-    typeSelect.addEventListener('change', updateStatusOptions);
-    document.addEventListener('DOMContentLoaded', updateStatusOptions);
-
-    // --- קוד JavaScript חדש לשמירת תצוגה ---
-    document.getElementById('save-view-btn').addEventListener('click', function() {
-      const viewName = prompt('אנא הכנס שם לתצוגה החדשה:');
-      if (viewName) {
-        const filters = {
-          contact_type_id: document.getElementById('contact_type_id').value ? parseInt(document.getElementById('contact_type_id').value) : null,
-          status_id: Array.from(document.getElementById('status_id').selectedOptions).map(opt => parseInt(opt.value)),
-          sort_by: document.getElementById('sort_by').value
-        };
-
-        fetch('/api/save_view', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: viewName, filters: filters }),
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            alert(data.message);
-            window.location.reload(); // רענן את הדף כדי להציג את התצוגה החדשה
-          } else {
-            alert('שגיאה בשמירת התצוגה.');
-          }
-        });
-      }
-    });
-  </script>
+  });
+</script>
 {% endblock %}

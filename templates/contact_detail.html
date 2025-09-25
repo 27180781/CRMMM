@@ -1,16 +1,48 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <h1>כרטיס לקוח: {{ contact.name }}</h1>
-  <p><strong>אימייל:</strong> {{ contact.email }}</p>
-  <p><strong>טלפון:</strong> {{ contact.phone }}</p>
-  <p><strong>סטטוס:</strong> {{ contact.status }}</p>
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h1>כרטיס לקוח: {{ contact.name }}</h1>
+    <button type="button" id="edit-btn">עריכה</button>
+  </div>
+  
+  <form action="{{ url_for('edit_contact', contact_id=contact.id) }}" method="post" id="edit-contact-form">
+    <fieldset id="contact-fieldset" disabled>
+        <p><strong>שם:</strong> <input type="text" name="name" value="{{ contact.name }}"></p>
+        <p><strong>אימייל:</strong> <input type="email" name="email" value="{{ contact.email or '' }}"></p>
+        <p><strong>טלפון:</strong> <input type="tel" name="phone" value="{{ contact.phone or '' }}"></p>
+        <p>
+            <strong>סוג רישום:</strong>
+            <select name="contact_type_id" id="contact_type_id">
+                <option value="">--- בחר סוג ---</option>
+                {% for c_type in contact_types %}
+                <option value="{{ c_type.id }}" {% if contact.contact_type_id == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
+                {% endfor %}
+            </select>
+        </p>
+        <p>
+            <strong>סטטוס:</strong>
+            <select name="status_id" id="status_id">
+                </select>
+        </p>
+    </fieldset>
+    <button type="submit" id="save-btn" style="display:none; margin-top:10px;">שמור שינויים</button>
+  </form>
   
   <hr>
 
   <h2>הוסף פעילות חדשה</h2>
   <form action="{{ url_for('add_activity', contact_id=contact.id) }}" method="post">
-    <textarea name="description" rows="3" style="width:100%;" placeholder="תיאור הפעילות (שיחה, מייל, פגישה...)" required></textarea>
+    <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 10px;">
+        <label for="activity_type_id">סוג התקשרות:</label>
+        <select name="activity_type_id" id="activity_type_id">
+            <option value="">--- בחר סוג ---</option>
+            {% for a_type in activity_types %}
+            <option value="{{ a_type.id }}">{{ a_type.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <textarea name="description" rows="3" style="width:100%;" placeholder="תיאור הפעילות..." required></textarea>
     <br><br>
     <button type="submit">הוסף תיעוד</button>
   </form>
@@ -18,14 +50,59 @@
   <hr>
 
   <h2>היסטוריית פעילויות</h2>
-  {% if activities %}
-    {% for activity in activities %}
-      <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
-        <p><strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}</p>
-        <p>{{ activity.description }}</p>
-      </div>
-    {% endfor %}
+  {% for activity in activities %}
+    <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+      <p>
+        <strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
+        {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
+      </p>
+      <p>{{ activity.description }}</p>
+    </div>
   {% else %}
-    <p>אין עדיין פעילויות מתועדות עבור איש קשר זה.</p>
-  {% endif %}
+    <p>אין עדיין פעילויות מתועדות.</p>
+  {% endfor %}
+
+  <script>
+    // JS לעריכת פרטי הלקוח
+    const editBtn = document.getElementById('edit-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const fieldset = document.getElementById('contact-fieldset');
+
+    editBtn.addEventListener('click', () => {
+        fieldset.disabled = !fieldset.disabled;
+        saveBtn.style.display = fieldset.disabled ? 'none' : 'inline-block';
+        editBtn.textContent = fieldset.disabled ? 'עריכה' : 'בטל עריכה';
+    });
+
+    // JS לטעינה דינמית של סטטוסים
+    const allStatuses = [
+        {% for status in statuses %}
+            { id: {{ status.id }}, name: '{{ status.name }}', type_id: {{ status.contact_type_id }} },
+        {% endfor %}
+    ];
+    const contactTypeId = '{{ contact.contact_type_id or '' }}';
+    const statusId = '{{ contact.status_id or '' }}';
+
+    const typeSelect = document.getElementById('contact_type_id');
+    const statusSelect = document.getElementById('status_id');
+
+    function updateStatusOptions() {
+        const selectedTypeId = typeSelect.value;
+        statusSelect.innerHTML = '<option value="">--- בחר סטטוס ---</option>';
+        if (selectedTypeId) {
+            const relevantStatuses = allStatuses.filter(s => s.type_id.toString() === selectedTypeId);
+            relevantStatuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status.id;
+                option.textContent = status.name;
+                if (status.id.toString() === statusId) {
+                    option.selected = true;
+                }
+                statusSelect.appendChild(option);
+            });
+        }
+    }
+    typeSelect.addEventListener('change', updateStatusOptions);
+    document.addEventListener('DOMContentLoaded', updateStatusOptions);
+  </script>
 {% endblock %}
