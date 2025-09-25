@@ -1,8 +1,8 @@
-"""Add Activity model
+"""Create initial database schema
 
-Revision ID: d4ef0ea229b7
+Revision ID: 6ef7ca8076a0
 Revises: 
-Create Date: 2025-09-26 00:06:36.913995
+Create Date: 2025-09-26 00:11:06.364440
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd4ef0ea229b7'
+revision = '6ef7ca8076a0'
 down_revision = None
 branch_labels = None
 depends_on = None
