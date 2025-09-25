@@ -2,10 +2,15 @@
 
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+import os # ודא שזה נמצא בראש הקובץ
+
+# ...
 
 # 1. הגדרת האפליקציה ומסד הנתונים
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crm.db' # הגדרת מסד הנתונים - קובץ בשם crm.db
+# קריאת כתובת מסד הנתונים ממשתנה סביבה
+database_url = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
