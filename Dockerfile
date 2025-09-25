@@ -15,4 +15,4 @@ COPY . .
 
 # 5. הפקודה שתרוץ כאשר הקונטיינר יופעל
 # הפעלת האפליקציה באמצעות gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:80", "app:app"]
+CMD ["sh", "-c", "flask db upgrade && gunicorn --bind 0.0.0.0:80 app:app"]

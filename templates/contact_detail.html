@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>כרטיס לקוח: {{ contact.name }}</h1>
+  <p><strong>אימייל:</strong> {{ contact.email }}</p>
+  <p><strong>טלפון:</strong> {{ contact.phone }}</p>
+  <p><strong>סטטוס:</strong> {{ contact.status }}</p>
+  
+  <hr>
+
+  <h2>הוסף פעילות חדשה</h2>
+  <form action="{{ url_for('add_activity', contact_id=contact.id) }}" method="post">
+    <textarea name="description" rows="3" style="width:100%;" placeholder="תיאור הפעילות (שיחה, מייל, פגישה...)" required></textarea>
+    <br><br>
+    <button type="submit">הוסף תיעוד</button>
+  </form>
+
+  <hr>
+
+  <h2>היסטוריית פעילויות</h2>
+  {% if activities %}
+    {% for activity in activities %}
+      <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+        <p><strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}</p>
+        <p>{{ activity.description }}</p>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>אין עדיין פעילויות מתועדות עבור איש קשר זה.</p>
+  {% endif %}
+{% endblock %}

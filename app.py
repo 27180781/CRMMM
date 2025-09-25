@@ -1,69 +1,78 @@
-# app.py
-
+import os
+import datetime
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-import os # ודא שזה נמצא בראש הקובץ
-
-# ...
+from flask_migrate import Migrate
 
 # 1. הגדרת האפליקציה ומסד הנתונים
 app = Flask(__name__)
-# קריאת כתובת מסד הנתונים ממשתנה סביבה
-database_url = os.environ.get('DATABASE_URL')
+# קריאת כתובת מסד הנתונים ממשתנה סביבה (לסביבת פרודקשן)
+# אם המשתנה לא קיים, חוזרים להשתמש ב-SQLite המקומי (לסביבת פיתוח)
+database_url = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+migrate = Migrate(app, db) # אתחול של Flask-Migrate
 
-# 2. הגדרת מודל - איך ייראה "איש קשר" במסד הנתונים
+# 2. הגדרת מודלים (טבלאות מסד הנתונים)
 class Contact(db.Model):
-    id = db.Column(db.Integer, primary_key=True) # מזהה ייחודי
-    name = db.Column(db.String(100), nullable=False) # שם מלא
-    email = db.Column(db.String(100), unique=True) # אימייל (ייחודי)
-    phone = db.Column(db.String(20)) # טלפון
-    status = db.Column(db.String(50), default='ליד חדש') # סטטוס (למשל, ליד חדש, נוצר קשר, לקוח)
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), unique=True)
+    phone = db.Column(db.String(20))
+    status = db.Column(db.String(50), default='ליד חדש')
+    # יצירת קשר לפעילויות - לכל איש קשר יש רשימה של פעילויות
+    activities = db.relationship('Activity', backref='contact', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Contact {self.name}>'
 
-# 3. יצירת מסד הנתונים (אם הוא לא קיים)
-# יש להריץ פעם אחת בלבד מהטרמינל לפני הפעלת האפליקציה
-@app.cli.command('init-db')
-def init_db_command():
-    """יוצר את טבלאות מסד הנתונים."""
-    db.create_all()
-    print('Initialized the database.')
-# יוצר את טבלאות מסד הנתונים באופן אוטומטי אם הן לא קיימות
-with app.app_context():
-    db.create_all()
-# -------------------------
+class Activity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
+    # קישור לאיש הקשר הספציפי באמצעות מפתח זר
+    contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
 
-# 4. הגדרת נתיבים (Routes) באפליקציה
+    def __repr__(self):
+        return f'<Activity {self.id} for contact {self.contact_id}>'
+
+# 3. הגדרת נתיבים (Routes) ופעולות
 @app.route('/')
 def index():
     """הדף הראשי - מציג את כל אנשי הקשר"""
-    contacts = Contact.query.all() # שליפת כל אנשי הקשר ממסד הנתונים
+    contacts = Contact.query.order_by(Contact.name).all()
     return render_template('index.html', contacts=contacts)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_contact():
     """דף להוספת איש קשר חדש"""
     if request.method == 'POST':
-        # אם הטופס נשלח (בשיטת POST)
-        name = request.form['name']
-        email = request.form['email']
-        phone = request.form['phone']
-        
-        # יצירת אובייקט איש קשר חדש
-        new_contact = Contact(name=name, email=email, phone=phone)
-        
-        # שמירה במסד הנתונים
+        new_contact = Contact(
+            name=request.form['name'],
+            email=request.form['email'],
+            phone=request.form['phone']
+        )
         db.session.add(new_contact)
         db.session.commit()
-        
-        return redirect(url_for('index')) # חזרה לדף הראשי
-    
-    # אם נכנסים לדף בפעם הראשונה (בשיטת GET)
+        return redirect(url_for('index'))
     return render_template('add_contact.html')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.route('/contact/<int:contact_id>')
+def contact_detail(contact_id):
+    """מציג כרטיס לקוח עם כל הפרטים והפעילויות"""
+    contact = Contact.query.get_or_4404(contact_id)
+    # מציג את הפעילויות מהחדשה לישנה
+    activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
+    return render_template('contact_detail.html', contact=contact, activities=activities)
+
+@app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
+def add_activity(contact_id):
+    """מוסיף רשומת פעילות חדשה לאיש קשר"""
+    contact = Contact.query.get_or_404(contact_id)
+    description = request.form['description']
+    if description:
+        new_activity = Activity(description=description, contact_id=contact.id)
+        db.session.add(new_activity)
+        db.session.commit()
+    return redirect(url_for('contact_detail', contact_id=contact.id))
