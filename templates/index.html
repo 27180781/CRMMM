@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>רשימת אנשי קשר</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>שם</th>
+        <th>אימייל</th>
+        <th>טלפון</th>
+        <th>סטטוס</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for contact in contacts %}
+      <tr>
+        <td>{{ contact.name }}</td>
+        <td>{{ contact.email }}</td>
+        <td>{{ contact.phone }}</td>
+        <td>{{ contact.status }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4">עדיין אין אנשי קשר במערכת.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

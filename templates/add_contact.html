@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>הוספת איש קשר חדש</h1>
+  <form method="post">
+    <label for="name">שם מלא:</label><br>
+    <input type="text" id="name" name="name" required><br><br>
+    
+    <label for="email">אימייל:</label><br>
+    <input type="email" id="email" name="email"><br><br>
+    
+    <label for="phone">טלפון:</label><br>
+    <input type="tel" id="phone" name="phone"><br><br>
+    
+    <button type="submit">הוספה</button>
+  </form>
+{% endblock %}

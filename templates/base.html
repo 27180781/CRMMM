@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>מערכת CRM</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; }
+      nav { margin-bottom: 20px; }
+      nav a { margin-left: 15px; text-decoration: none; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
+      th { background-color: #f2f2f2; }
+      .container { max-width: 960px; margin: auto; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <nav>
+        <a href="{{ url_for('index') }}">דף הבית</a>
+        <a href="{{ url_for('add_contact') }}">הוספת איש קשר</a>
+      </nav>
+      <hr>
+      {% block content %}{% endblock %}
+    </div>
+  </body>
+</html>
