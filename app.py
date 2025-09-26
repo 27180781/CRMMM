@@ -71,47 +71,19 @@ class SavedView(db.Model):
     filters = db.Column(db.JSON, nullable=False)
     def __repr__(self): return self.name
 
-    class CustomField(db.Model):
+class CustomField(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    # בעתיד נוכל להוסיף סוגי שדות כמו 'textarea', 'date', וכו'
     field_type = db.Column(db.String(50), nullable=False, default='text')
+    def __repr__(self): return self.name
 
-    def __repr__(self):
-        return self.name
-
-@app.route('/contact/<int:contact_id>/edit', methods=['POST'])
-def edit_contact(contact_id):
-    contact = Contact.query.get_or_404(contact_id)
-
-    # 1. עדכון השדות הרגילים של איש הקשר
-    contact.name = request.form.get('name')
-    contact.email = request.form.get('email')
-    contact.phone = request.form.get('phone')
-    contact.contact_type_id = request.form.get('contact_type_id', type=int) or None
-    contact.status_id = request.form.get('status_id', type=int) or None
-
-    # 2. לוגיקה לעדכון, יצירה או מחיקה של שדות מותאמים
-    custom_fields = CustomField.query.all()
-    for field in custom_fields:
-        value_str = request.form.get(f'custom_{field.id}')
-        existing_value = CustomFieldValue.query.filter_by(contact_id=contact.id, field_id=field.id).first()
-
-        if value_str:  # אם הוכנס ערך בטופס
-            if existing_value:
-                existing_value.value = value_str  # עדכון ערך קיים
-            else:
-                new_value = CustomFieldValue(value=value_str, contact_id=contact.id, field_id=field.id)
-                db.session.add(new_value)  # יצירת ערך חדש
-        elif existing_value:
-            db.session.delete(existing_value)  # מחיקת ערך קיים אם השדה רוקן
-
-    # 3. שמירת כל השינויים (גם הרגילים וגם המותאמים) במסד הנתונים
-    db.session.commit()
-
-    # 4. הפניה חזרה לדף הפרטים של איש הקשר
-    return redirect(url_for('contact_detail', contact_id=contact.id))
-
+class CustomFieldValue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    value = db.Column(db.Text, nullable=False)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contact.id', ondelete='CASCADE'), nullable=False)
+    field_id = db.Column(db.Integer, db.ForeignKey('custom_field.id', ondelete='CASCADE'), nullable=False)
+    contact = db.relationship('Contact', backref=db.backref('custom_values', cascade="all, delete-orphan"))
+    field = db.relationship('CustomField')
 
 # 3. הגדרת נתיבים (Routes)
 @app.route('/')
@@ -129,88 +101,64 @@ def index():
 
     if contact_type_filter: query = query.filter(Contact.contact_type_id == contact_type_filter)
     if status_filter: query = query.filter(Contact.status_id.in_(status_filter))
-
+    
     sort_map = {'created_at_asc': Contact.created_at.asc(), 'updated_at_desc': Contact.updated_at.desc(), 'updated_at_asc': Contact.updated_at.asc()}
     query = query.order_by(sort_map.get(sort_by, Contact.created_at.desc()))
     
     contacts = query.all()
-    contact_types, all_statuses, saved_views = ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
+    contact_types = ContactType.query.all()
+    all_statuses = Status.query.all()
+    saved_views = SavedView.query.order_by(SavedView.name).all()
     
     return render_template('index.html', 
-                       contacts=contacts, 
-                       contact_types=contact_types,
-                       all_statuses=all_statuses,
-                       saved_views=saved_views,
-                       active_type_filter=contact_type_filter,
-                       active_status_filter=status_filter,
-                       active_sort=sort_by)
-# --- !!! הנה הפונקציה שהוחזרה !!! ---
+                           contacts=contacts, contact_types=contact_types, all_statuses=all_statuses,
+                           saved_views=saved_views, active_type_filter=contact_type_filter,
+                           active_status_filter=status_filter, active_sort=sort_by)
+
 @app.route('/add', methods=['GET', 'POST'])
 def add_contact():
-    """דף להוספת איש קשר חדש"""
     if request.method == 'POST':
-        new_contact = Contact(
-            name=request.form['name'],
-            email=request.form['email'],
-            phone=request.form['phone']
-        )
+        new_contact = Contact(name=request.form['name'], email=request.form['email'], phone=request.form['phone'])
         db.session.add(new_contact)
         db.session.commit()
         return redirect(url_for('index'))
     return render_template('add_contact.html')
-# --------------------------------------
 
 @app.route('/contact/<int:contact_id>')
 def contact_detail(contact_id):
-    # --- חלק הקוד הקיים ---
     contact = Contact.query.get_or_404(contact_id)
     activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
-    contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
-
-    # --- הוספת החלק החדש ---
-    # שליפת כל השדות המותאמים מהדאטהבייס
+    contact_types = ContactType.query.all()
+    statuses = Status.query.all()
+    activity_types = ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    # בניית מילון של ערכי השדות המותאמים עבור איש קשר זה
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
-
-    # --- שורת ה-return נשארת זהה ---
-    return render_template('contact_detail.html', **locals())
+    
+    return render_template('contact_detail.html', 
+                           contact=contact, activities=activities, contact_types=contact_types,
+                           statuses=statuses, activity_types=activity_types,
+                           custom_fields=custom_fields, contact_custom_values=contact_custom_values)
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 def edit_contact(contact_id):
     contact = Contact.query.get_or_404(contact_id)
-    
-    # --- עדכון השדות הרגילים (קוד קיים) ---
     contact.name = request.form.get('name')
     contact.email = request.form.get('email')
     contact.phone = request.form.get('phone')
     contact.contact_type_id = request.form.get('contact_type_id', type=int) or None
     contact.status_id = request.form.get('status_id', type=int) or None
-
-    # --- הוספת לוגיקה לשמירת שדות מותאמים ---
+    
     custom_fields = CustomField.query.all()
     for field in custom_fields:
-        # קבלת הערך מהטופס, לפי המזהה הדינאמי של השדה (למשל 'custom_1')
         value_str = request.form.get(f'custom_{field.id}')
-
-        # בדיקה אם כבר קיים ערך עבור שדה זה ועבור איש קשר זה
         existing_value = CustomFieldValue.query.filter_by(contact_id=contact.id, field_id=field.id).first()
-
-        if value_str:  # אם הוכנס ערך חדש בטופס
-            if existing_value:
-                # אם כבר קיים ערך, פשוט נעדכן אותו
-                existing_value.value = value_str
-            else:
-                # אם לא קיים ערך, ניצור רשומה חדשה
-                new_value = CustomFieldValue(value=value_str, contact_id=contact.id, field_id=field.id)
-                db.session.add(new_value)
+        if value_str:
+            if existing_value: existing_value.value = value_str
+            else: db.session.add(CustomFieldValue(value=value_str, contact_id=contact.id, field_id=field.id))
         elif existing_value:
-            # אם לא הוכנס ערך בטופס (השדה רוקן), ויש ערך קיים במסד הנתונים - נמחק אותו
             db.session.delete(existing_value)
-    
-    # --- שמירת כל השינויים במסד הנתונים ---
+            
     db.session.commit()
-    
     return redirect(url_for('contact_detail', contact_id=contact.id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
@@ -226,8 +174,11 @@ def add_activity(contact_id):
 def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
-    custom_fields=custom_fields) # הוספה חדשה
-    return render_template('settings.html', contact_types=contact_types, activity_types=activity_types)
+    custom_fields = CustomField.query.order_by(CustomField.name).all()
+    return render_template('settings.html', 
+                           contact_types=contact_types, 
+                           activity_types=activity_types,
+                           custom_fields=custom_fields)
 
 @app.route('/settings/add_contact_type', methods=['POST'])
 def add_contact_type():
@@ -260,53 +211,35 @@ def edit_setting(item_type, item_id):
             db.session.commit()
     return redirect(url_for('settings'))
 
-# --- !!! הנה הפונקציה המתוקנת והבטוחה !!! ---
 @app.route('/settings/delete/<item_type>/<int:item_id>', methods=['POST'])
 def delete_setting(item_type, item_id):
-    model_map = {
-        'contact_type': ContactType, 'status': Status, 
-        'activity_type': ActivityType, 'saved_view': SavedView
-    }
+    model_map = {'contact_type': ContactType, 'status': Status, 'activity_type': ActivityType, 'saved_view': SavedView}
     model = model_map.get(item_type)
-    
     if model:
         item = model.query.get_or_404(item_id)
-        
-        # בדיקות בטיחות קריטיות שהוחזרו
-        if item_type == 'contact_type' and item.contacts:
-            return redirect(url_for('settings')) # נמנע מחיקה אם יש קשרים
-        if item_type == 'status' and item.contacts:
-            return redirect(url_for('settings')) # נמנע מחיקה אם יש קשרים
-        
+        if item_type == 'contact_type' and item.contacts: return redirect(url_for('settings'))
+        if item_type == 'status' and item.contacts: return redirect(url_for('settings'))
         db.session.delete(item)
         db.session.commit()
-
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
-# ---------------------------------------------
 
 @app.route('/settings/add_custom_field', methods=['POST'])
 def add_custom_field():
-    """מוסיף שדה מותאם אישית חדש"""
-    name = request.form.get('name')
-    if name:
-        new_field = CustomField(name=name)
-        db.session.add(new_field)
+    if request.form.get('name'):
+        db.session.add(CustomField(name=request.form.get('name')))
         db.session.commit()
     return redirect(url_for('settings'))
 
 @app.route('/settings/edit/custom_field/<int:field_id>', methods=['POST'])
 def edit_custom_field(field_id):
-    """מעדכן שם של שדה מותאם אישית"""
-    field = CustomField.query.get_or_404(field_id)
-    new_name = request.form.get('name')
-    if new_name:
-        field.name = new_name
+    if request.form.get('name'):
+        field = CustomField.query.get_or_404(field_id)
+        field.name = request.form.get('name')
         db.session.commit()
     return redirect(url_for('settings'))
 
 @app.route('/settings/delete/custom_field/<int:field_id>', methods=['POST'])
 def delete_custom_field(field_id):
-    """מוחק שדה מותאם אישית (וכל הערכים שלו)"""
     field = CustomField.query.get_or_404(field_id)
     db.session.delete(field)
     db.session.commit()
