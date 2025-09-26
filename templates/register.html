@@ -1,64 +1,16 @@
 {% extends "base.html" %}
-
-{% block head %}
-{{ super() }}
-<style>
-    /* Specific styles for the register page to center the card */
-    .register-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding-top: 50px;
-    }
-    .register-card {
-        max-width: 450px;
-        width: 100%;
-    }
-    .register-card .form-footer {
-        text-align: center;
-        margin-top: 20px;
-        font-size: 0.9em;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="register-container">
-    <div class="card register-card">
-        <h1 style="text-align: center;">הרשמה למערכת</h1>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div style="color: red; text-align: right; margin-bottom: 15px;">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        <form method="post">
-            {{ form.hidden_tag() }}
-            
-            <div class="form-group">
-                <label for="email">אימייל:</label>
-                {{ form.email(class="form-control", required="required") }}
-            </div>
-
-            <div class="form-group">
-                <label for="password">סיסמה:</label>
-                {{ form.password(class="form-control", required="required") }}
-            </div>
-            
-            <div class="form-group">
-                <label for="confirm_password">אימות סיסמה:</label>
-                {{ form.confirm_password(class="form-control", required="required") }}
-            </div>
-
-            <button type="submit" class="btn btn-primary" style="width: 100%;">הרשמה</button>
-        </form>
-
-        <div class="form-footer">
-            <p>יש לך כבר חשבון? <a href="{{ url_for('login') }}">התחבר כאן</a></p>
-        </div>
-    </div>
+<div class="card" style="max-width: 400px; margin: 50px auto;">
+    <h1>הרשמה</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }} <label for="email">אימייל</label>
+        {{ form.email(id="email") }}
+        <label for="password">סיסמה</label>
+        {{ form.password(id="password") }}
+        <label for="confirm_password">אימות סיסמה</label>
+        {{ form.confirm_password(id="confirm_password") }}
+        {{ form.submit(class="btn btn-primary") }}
+    </form>
+    <p>יש לך כבר חשבון? <a href="{{ url_for('login') }}">התחבר כאן</a></p>
 </div>
 {% endblock %}
