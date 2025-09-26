@@ -15,4 +15,6 @@ COPY . .
 
 # 5. הפקודה שתרוץ כאשר הקונטיינר יופעל
 # הפעלת האפליקציה באמצעות gunicorn
-CMD ["sh", "-c", "flask db upgrade && gunicorn --bind 0.0.0.0:80 app:app"]
+CMD ["sh", "-c", "python -c 'import os, time, psycopg2; db_url = os.environ.get(\"DATABASE_URL\"); retries = 10; while retries > 0:
+ try: psycopg2.connect(db_url); print(\"DB Ready!\"); break;
+ except psycopg2.OperationalError: retries -= 1; print(\"Waiting for DB...\"); time.sleep(3);' && flask db upgrade && gunicorn --bind 0.0.0.0:80 app:app"]
