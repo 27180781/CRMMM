@@ -1,5 +1,8 @@
 import os
 import datetime
+import google.oauth2.credentials
+import google_auth_oauthlib.flow
+from googleapiclient.discovery import build
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -10,6 +13,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
+
 
 # 1. הגדרת טפסים
 class RegistrationForm(FlaskForm):
@@ -60,6 +64,7 @@ def admin_required(f):
 
 # 3. הגדרת מודלים
 class User(db.Model, UserMixin):
+    gmail_credentials_json = db.Column(db.Text, nullable=True)
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(60), nullable=False)
@@ -391,7 +396,67 @@ def save_view():
     db.session.add(view)
     db.session.commit()
     return jsonify({'success': True, 'message': 'View saved!'})
+# --- Gmail Integration Routes ---
 
+@app.route('/settings/gmail/authorize')
+@login_required
+def authorize_gmail():
+    """מתחיל את תהליך האימות מול Google"""
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        'client_secret.json', # ניצור את הקובץ הזה באופן דינמי
+        scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+        redirect_uri=url_for('oauth2callback', _external=True)
+    )
+    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+
+    # שמירת ה-state בסשן כדי למנוע התקפות CSRF
+    from flask import session
+    session['state'] = state
+
+    return redirect(authorization_url)
+
+@app.route('/oauth2callback')
+@login_required
+def oauth2callback():
+    """הכתובת ש-Google חוזר אליה לאחר אימות מוצלח"""
+    from flask import session
+    state = session['state']
+
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        'client_secret.json',
+        scopes=None,
+        state=state,
+        redirect_uri=url_for('oauth2callback', _external=True)
+    )
+    flow.fetch_token(authorization_response=request.url)
+
+    credentials = flow.credentials
+    # שמירת הטוקנים במסד הנתונים עבור המשתמש הנוכחי
+    current_user.gmail_credentials_json = credentials.to_json()
+    db.session.commit()
+
+    flash('חשבון Gmail חובר בהצלחה!', 'success')
+    return redirect(url_for('settings'))
+
+# --- Helper function to create client_secret.json on the fly ---
+import json
+def create_client_secret_file():
+    client_config = {
+        "web": {
+            "client_id": os.environ.get('GOOGLE_CLIENT_ID'),
+            "project_id": "y-crm-integration", # החלף ב-ID של הפרויקט שלך מ-Google Cloud
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.token.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET')
+        }
+    }
+    with open('client_secret.json', 'w') as f:
+        json.dump(client_config, f)
+
+@app.before_request
+def before_request_func():
+    create_client_secret_file()
 @app.route('/api/lead', methods=['POST'])
 def handle_lead():
     # ... (קוד זה נשאר ללא שינוי)

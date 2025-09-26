@@ -6,4 +6,7 @@ Flask-Login
 Flask-Bcrypt
 Flask-WTF
 email-validator
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
 Flask-Migrate
