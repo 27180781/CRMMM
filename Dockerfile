@@ -13,7 +13,8 @@ RUN pip install -r requirements.txt
 # 4. העתק את כל קבצי הפרויקט לתוך הקונטיינר
 COPY . .
 
-# 5. הפקודה שתרוץ כאשר הקונטיינר יופעל (בשורה אחת)
-CMD ["sh", "-c", "python -c 'import os, time, psycopg2; db_url = os.environ.get(\"DATABASE_URL\"); retries = 10; while retries > 0:
- try: psycopg2.connect(db_url); print(\"DB Ready!\"); break;
- except psycopg2.OperationalError: retries -= 1; print(\"Waiting for DB...\"); time.sleep(3);' && flask db upgrade && gunicorn --bind 0.0.0.0:80 app:app"]
+# 5. הענק הרשאות הרצה לקובץ ה-entrypoint
+RUN chmod +x /app/entrypoint.sh
+
+# 6. הגדר את קובץ ה-entrypoint כפקודת ההפעלה
+CMD ["/app/entrypoint.sh"]
