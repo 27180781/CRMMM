@@ -1,36 +1,35 @@
 import os
 import datetime
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from sqlalchemy import MetaData, or_
+from sqlalchemy import MetaData
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 
+# 1. הגדרת טפסים
 class RegistrationForm(FlaskForm):
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired()])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    submit = SubmitField('Sign Up')
+    email = StringField('אימייל', validators=[DataRequired(), Email()])
+    password = PasswordField('סיסמה', validators=[DataRequired()])
+    confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('הרשמה')
 
     def validate_email(self, email):
-        user = User.query.filter_by(email=email.data).first()
-        if user:
-            raise ValidationError('That email is taken. Please choose a different one.')
+        if User.query.filter_by(email=email.data).first():
+            raise ValidationError('כתובת אימייל זו כבר תפוסה.')
 
 class LoginForm(FlaskForm):
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
+    email = StringField('אימייל', validators=[DataRequired(), Email()])
+    password = PasswordField('סיסמה', validators=[DataRequired()])
+    submit = SubmitField('כניסה')
 
-# 1. הגדרת האפליקציה ומסד הנתונים
+# 2. הגדרת האפליקציה
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'a_very_secret_key_that_should_be_changed' # הוסף מפתח סודי
-database_url = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SECRET_KEY'] = 'a_very_secret_key_that_should_be_changed'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 metadata = MetaData(naming_convention={
@@ -44,12 +43,14 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "אנא התחבר כדי לגשת לעמוד זה."
+login_manager.login_message_category = 'info'
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# 2. הגדרת מודלים
+# 3. הגדרת מודלים (נשארים ללא שינוי)
+# ... (כל המודלים שלך: User, ContactType, Status, וכו'...)
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -110,7 +111,7 @@ class CustomFieldValue(db.Model):
     contact = db.relationship('Contact', backref=db.backref('custom_values', cascade="all, delete-orphan"))
     field = db.relationship('CustomField')
 
-# 3. Routes
+# 4. Routes
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -119,11 +120,12 @@ def register():
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         user = User(email=form.email.data, password_hash=hashed_password)
-        if not User.query.first(): # Make first user an admin
+        if not User.query.first():
             user.is_admin = True
         db.session.add(user)
         db.session.commit()
         login_user(user)
+        flash('החשבון נוצר בהצלחה!', 'success')
         return redirect(url_for('index'))
     return render_template('register.html', form=form)
 
@@ -139,11 +141,10 @@ def login():
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('index'))
         else:
-            # במקום להעביר error, נשתמש במערכת ההודעות של Flask
-            from flask import flash
-            flash('Login Unsuccessful. Please check email and password', 'danger')
+            flash('התחברות נכשלה. אנא בדוק אימייל וסיסמה.', 'danger')
     return render_template('login.html', form=form)
 
+# ... (כל שאר הפונקציות שלך נשארות זהות) ...
 @app.route('/logout')
 @login_required
 def logout():
@@ -153,7 +154,6 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    # ... (code remains the same)
     query = Contact.query
     contact_type_filter, status_filter, sort_by = None, [], 'created_at_desc'
     view_id = request.args.get('view_id', type=int)
@@ -167,13 +167,16 @@ def index():
 
     if contact_type_filter: query = query.filter(Contact.contact_type_id == contact_type_filter)
     if status_filter: query = query.filter(Contact.status_id.in_(status_filter))
-    
+
     sort_map = {'created_at_asc': Contact.created_at.asc(), 'updated_at_desc': Contact.updated_at.desc(), 'updated_at_asc': Contact.updated_at.asc()}
     query = query.order_by(sort_map.get(sort_by, Contact.created_at.desc()))
-    
+
     contacts, contact_types, all_statuses, saved_views = query.all(), ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
-    
-    return render_template('index.html', **locals())
+
+    return render_template('index.html',
+                           contacts=contacts, contact_types=contact_types, all_statuses=all_statuses,
+                           saved_views=saved_views, active_type_filter=contact_type_filter,
+                           active_status_filter=status_filter, active_sort=sort_by)
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -193,7 +196,10 @@ def contact_detail(contact_id):
     contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
-    return render_template('contact_detail.html', **locals())
+    return render_template('contact_detail.html',
+                           contact=contact, activities=activities, contact_types=contact_types,
+                           statuses=statuses, activity_types=activity_types,
+                           custom_fields=custom_fields, contact_custom_values=contact_custom_values)
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 @login_required
@@ -204,7 +210,7 @@ def edit_contact(contact_id):
     contact.phone = request.form.get('phone')
     contact.contact_type_id = request.form.get('contact_type_id', type=int) or None
     contact.status_id = request.form.get('status_id', type=int) or None
-    
+
     for field in CustomField.query.all():
         value_str = request.form.get(f'custom_{field.id}')
         existing_value = CustomFieldValue.query.filter_by(contact_id=contact.id, field_id=field.id).first()
@@ -212,7 +218,7 @@ def edit_contact(contact_id):
             if existing_value: existing_value.value = value_str
             else: db.session.add(CustomFieldValue(value=value_str, contact_id=contact.id, field_id=field.id))
         elif existing_value: db.session.delete(existing_value)
-            
+
     db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact.id))
 
@@ -223,7 +229,7 @@ def add_activity(contact_id):
         new_activity = Activity(description=request.form['description'], contact_id=contact_id, activity_type_id=request.form.get('activity_type_id', type=int))
         db.session.add(new_activity)
         db.session.commit()
-    return redirect(url_for('contact_detail', contact_id=contact_id))
+    return redirect(url_for('contact_detail', contact_id=contact.id))
 
 @app.route('/settings')
 @login_required
@@ -231,9 +237,11 @@ def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    return render_template('settings.html', **locals())
-
-# ... (Add, Edit, Delete functions for settings remain the same)
+    return render_template('settings.html',
+                           contact_types=contact_types,
+                           activity_types=activity_types,
+                           custom_fields=custom_fields)
+# Add, Edit, Delete functions for settings
 @app.route('/settings/add_contact_type', methods=['POST'])
 @login_required
 def add_contact_type():
@@ -307,7 +315,7 @@ def delete_custom_field(field_id):
     db.session.commit()
     return redirect(url_for('settings'))
 
-# ... (API Endpoints remain the same)
+# API Endpoints
 @app.route('/api/save_view', methods=['POST'])
 @login_required
 def save_view():

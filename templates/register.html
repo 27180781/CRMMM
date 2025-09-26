@@ -3,13 +3,22 @@
 <div class="card" style="max-width: 400px; margin: 50px auto;">
     <h1>הרשמה</h1>
     <form method="POST" action="">
-        {{ form.hidden_tag() }} <label for="email">אימייל</label>
-        {{ form.email(id="email") }}
-        <label for="password">סיסמה</label>
-        {{ form.password(id="password") }}
-        <label for="confirm_password">אימות סיסמה</label>
-        {{ form.confirm_password(id="confirm_password") }}
-        {{ form.submit(class="btn btn-primary") }}
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            {{ form.email.label }}
+            {{ form.email(class="form-control") }}
+        </div>
+        <div class="form-group">
+            {{ form.password.label }}
+            {{ form.password(class="form-control") }}
+        </div>
+        <div class="form-group">
+            {{ form.confirm_password.label }}
+            {{ form.confirm_password(class="form-control") }}
+        </div>
+        <div class="form-group">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
     </form>
     <p>יש לך כבר חשבון? <a href="{{ url_for('login') }}">התחבר כאן</a></p>
 </div>
