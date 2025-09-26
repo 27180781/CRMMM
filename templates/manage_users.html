@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h1>ניהול משתמשים</h1>
+    <p>בעמוד זה ניתן לנהל את המשתמשים וההרשאות במערכת.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="padding: 10px; border-radius: 5px; margin-bottom: 15px; background-color: {% if category == 'danger' %}#f8d7da{% else %}#d4edda{% endif %}; color: {% if category == 'danger' %}#721c24{% else %}#155724{% endif %};">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>אימייל</th>
+                <th>תפקיד</th>
+                <th>פעולות</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.email }}</td>
+                <td>{% if user.is_admin %}מנהל{% else %}משתמש{% endif %}</td>
+                <td style="display: flex; gap: 10px;">
+                    <form action="{{ url_for('set_user_admin_status', user_id=user.id) }}" method="post">
+                        <button type="submit" class="btn">
+                            {% if user.is_admin %}הסר הרשאות מנהל{% else %}הפוך למנהל{% endif %}
+                        </button>
+                    </form>
+                    <form action="{{ url_for('delete_user', user_id=user.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח שברצונך למחוק את המשתמש {{ user.email }}?');">
+                        <button type="submit" class="btn btn-danger">מחק</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
