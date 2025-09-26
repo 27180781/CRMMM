@@ -6,6 +6,25 @@ from flask_migrate import Migrate
 from sqlalchemy import MetaData, or_
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+
+class RegistrationForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Sign Up')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user:
+            raise ValidationError('That email is taken. Please choose a different one.')
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
 
 # 1. הגדרת האפליקציה ומסד הנתונים
 app = Flask(__name__)
@@ -94,33 +113,36 @@ class CustomFieldValue(db.Model):
 # 3. Routes
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # ... (code remains the same)
-    if request.method == 'POST':
-        email, password = request.form.get('email'), request.form.get('password')
-        if User.query.filter_by(email=email).first():
-            return render_template('register.html', error='כתובת אימייל זו כבר קיימת.')
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        new_user = User(email=email, password_hash=hashed_password)
-        if not User.query.first(): new_user.is_admin = True
-        db.session.add(new_user)
-        db.session.commit()
-        login_user(new_user)
+    if current_user.is_authenticated:
         return redirect(url_for('index'))
-    return render_template('register.html')
-
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(email=form.email.data, password_hash=hashed_password)
+        if not User.query.first(): # Make first user an admin
+            user.is_admin = True
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+        return redirect(url_for('index'))
+    return render_template('register.html', form=form)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # ... (code remains the same)
-    if request.method == 'POST':
-        email, password = request.form.get('email'), request.form.get('password')
-        user = User.query.filter_by(email=email).first()
-        if user and bcrypt.check_password_hash(user.password_hash, password):
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and bcrypt.check_password_hash(user.password_hash, form.password.data):
             login_user(user)
-            return redirect(url_for('index'))
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
         else:
-            return render_template('login.html', error='אימייל או סיסמה שגויים.')
-    return render_template('login.html')
+            # במקום להעביר error, נשתמש במערכת ההודעות של Flask
+            from flask import flash
+            flash('Login Unsuccessful. Please check email and password', 'danger')
+    return render_template('login.html', form=form)
 
 @app.route('/logout')
 @login_required
