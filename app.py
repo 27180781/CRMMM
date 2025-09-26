@@ -1,5 +1,7 @@
 import os
 import datetime
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_bcrypt import Bcrypt
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -22,6 +24,15 @@ metadata = MetaData(
 )
 db = SQLAlchemy(app, metadata=metadata)
 migrate = Migrate(app, db)
+
+bcrypt = Bcrypt(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login' # לאן להפנות משתמש לא רשום
+login_manager.login_message = "אנא התחבר כדי לגשת לעמוד זה."
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # 2. הגדרת מודלים
 class ContactType(db.Model):
@@ -85,7 +96,61 @@ class CustomFieldValue(db.Model):
     contact = db.relationship('Contact', backref=db.backref('custom_values', cascade="all, delete-orphan"))
     field = db.relationship('CustomField')
 
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(60), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+
 # 3. הגדרת נתיבים (Routes)
+# --- Routes for Authentication ---
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # בדוק אם המשתמש כבר קיים
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return render_template('register.html', error='כתובת אימייל זו כבר קיימת.')
+        
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        new_user = User(email=email, password_hash=hashed_password)
+        
+        # הגדר את המשתמש הראשון שנרשם כמנהל
+        if not User.query.first():
+            new_user.is_admin = True
+            
+        db.session.add(new_user)
+        db.session.commit()
+        
+        login_user(new_user)
+        return redirect(url_for('index'))
+        
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        
+        if user and bcrypt.check_password_hash(user.password_hash, password):
+            login_user(user)
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='אימייל או סיסמה שגויים.')
+            
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/')
 def index():
     query = Contact.query
