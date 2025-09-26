@@ -152,6 +152,7 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/')
+@login_required
 def index():
     query = Contact.query
     contact_type_filter, status_filter, sort_by = None, [], 'created_at_desc'
@@ -181,6 +182,7 @@ def index():
                            active_status_filter=status_filter, active_sort=sort_by)
 
 @app.route('/add', methods=['GET', 'POST'])
+@login_required
 def add_contact():
     if request.method == 'POST':
         new_contact = Contact(name=request.form['name'], email=request.form['email'], phone=request.form['phone'])
@@ -190,6 +192,7 @@ def add_contact():
     return render_template('add_contact.html')
 
 @app.route('/contact/<int:contact_id>')
+@login_required
 def contact_detail(contact_id):
     contact = Contact.query.get_or_404(contact_id)
     activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
@@ -205,6 +208,7 @@ def contact_detail(contact_id):
                            custom_fields=custom_fields, contact_custom_values=contact_custom_values)
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
+@login_required
 def edit_contact(contact_id):
     contact = Contact.query.get_or_404(contact_id)
     contact.name = request.form.get('name')
@@ -227,6 +231,7 @@ def edit_contact(contact_id):
     return redirect(url_for('contact_detail', contact_id=contact.id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
+@login_required
 def add_activity(contact_id):
     if request.form['description']:
         new_activity = Activity(description=request.form['description'], contact_id=contact_id, activity_type_id=request.form.get('activity_type_id', type=int))
@@ -236,6 +241,7 @@ def add_activity(contact_id):
 
 # --- Routes for settings page ---
 @app.route('/settings')
+@login_required
 def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
@@ -246,6 +252,7 @@ def settings():
                            custom_fields=custom_fields)
 
 @app.route('/settings/add_contact_type', methods=['POST'])
+@login_required
 def add_contact_type():
     if request.form.get('name'):
         db.session.add(ContactType(name=request.form.get('name')))
@@ -253,6 +260,7 @@ def add_contact_type():
     return redirect(url_for('settings'))
 
 @app.route('/settings/add_status', methods=['POST'])
+@login_required
 def add_status():
     if request.form.get('name') and request.form.get('contact_type_id'):
         db.session.add(Status(name=request.form.get('name'), contact_type_id=request.form.get('contact_type_id')))
@@ -260,6 +268,7 @@ def add_status():
     return redirect(url_for('settings'))
 
 @app.route('/settings/add_activity_type', methods=['POST'])
+@login_required
 def add_activity_type():
     if request.form.get('name'):
         db.session.add(ActivityType(name=request.form.get('name')))
@@ -267,6 +276,7 @@ def add_activity_type():
     return redirect(url_for('settings'))
 
 @app.route('/settings/edit/<item_type>/<int:item_id>', methods=['POST'])
+@login_required
 def edit_setting(item_type, item_id):
     if request.form.get('name'):
         model = {'contact_type': ContactType, 'status': Status, 'activity_type': ActivityType}.get(item_type)
@@ -277,6 +287,7 @@ def edit_setting(item_type, item_id):
     return redirect(url_for('settings'))
 
 @app.route('/settings/delete/<item_type>/<int:item_id>', methods=['POST'])
+@login_required
 def delete_setting(item_type, item_id):
     model_map = {'contact_type': ContactType, 'status': Status, 'activity_type': ActivityType, 'saved_view': SavedView}
     model = model_map.get(item_type)
@@ -289,6 +300,7 @@ def delete_setting(item_type, item_id):
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
 
 @app.route('/settings/add_custom_field', methods=['POST'])
+@login_required
 def add_custom_field():
     if request.form.get('name'):
         db.session.add(CustomField(name=request.form.get('name')))
@@ -296,6 +308,7 @@ def add_custom_field():
     return redirect(url_for('settings'))
 
 @app.route('/settings/edit/custom_field/<int:field_id>', methods=['POST'])
+@login_required
 def edit_custom_field(field_id):
     if request.form.get('name'):
         field = CustomField.query.get_or_404(field_id)
@@ -304,6 +317,7 @@ def edit_custom_field(field_id):
     return redirect(url_for('settings'))
 
 @app.route('/settings/delete/custom_field/<int:field_id>', methods=['POST'])
+@login_required
 def delete_custom_field(field_id):
     field = CustomField.query.get_or_404(field_id)
     db.session.delete(field)
@@ -312,6 +326,7 @@ def delete_custom_field(field_id):
 
 # --- API Endpoints ---
 @app.route('/api/save_view', methods=['POST'])
+@login_required
 def save_view():
     data = request.get_json()
     if not data or not data.get('name') or data.get('filters') is None:
@@ -322,6 +337,7 @@ def save_view():
     return jsonify({'success': True, 'message': 'View saved!', 'view': {'id': view.id, 'name': view.name}})
 
 @app.route('/api/lead', methods=['POST'])
+@login_required
 def handle_lead():
     data = request.get_json()
     if not data: return {"error": "Invalid request. Expecting JSON data."}, 400
