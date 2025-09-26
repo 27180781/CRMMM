@@ -1,95 +1,132 @@
 {% extends "base.html" %}
 
 {% block head %}
+{{ super() }}
 <style>
+  .settings-section {
+    background-color: var(--panel-bg-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 25px;
+    margin-bottom: 25px;
+  }
+  .settings-section h2, .settings-section h3 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .add-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .add-form input { flex-grow: 1; margin-bottom: 0; }
+
   .item-list { list-style: none; padding: 0; }
-  .item-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+  .item-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 5px;
+    border-bottom: 1px solid #eee;
+  }
+  .item-list li:last-child { border-bottom: none; }
+  
   .item-actions { display: flex; gap: 10px; }
-  .edit-form { display: none; }
+  .edit-form { display: none; gap: 10px; width: 100%; }
+  .edit-form input { flex-grow: 1; margin-bottom: 0; }
+  .edit-btn, .delete-btn {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    border: 1px solid var(--border-color);
+    background-color: #fff;
+    cursor: pointer;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-    <h1>הגדרות מערכת</h1>
-    <hr>
+<h1>הגדרות מערכת</h1>
 
+<div class="settings-section">
     <h2>ניהול סוגי רישום</h2>
-    <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 20px;">
-      <h3>הוסף סוג רישום חדש</h3>
-      <form action="{{ url_for('add_contact_type') }}" method="post">
+    <h3>הוסף סוג רישום חדש</h3>
+    <form action="{{ url_for('add_contact_type') }}" method="post" class="add-form">
         <input type="text" name="name" placeholder="שם הסוג" required>
-        <button type="submit">הוסף סוג</button>
-      </form>
-      <h4>סוגים קיימים:</h4>
-      <ul class="item-list">
+        <button type="submit" class="btn btn-primary">הוסף</button>
+    </form>
+    <h4>סוגים קיימים:</h4>
+    <ul class="item-list">
         {% for c_type in contact_types %}
         <li>
-          <span class="item-name">{{ c_type.name }}</span>
-          <form class="edit-form" action="{{ url_for('edit_setting', item_type='contact_type', item_id=c_type.id) }}" method="post">
-            <input type="text" name="name" value="{{ c_type.name }}" required> <button type="submit">שמור</button>
-          </form>
-          <div class="item-actions">
-            <button type="button" class="edit-btn">ערוך</button>
-            <form action="{{ url_for('delete_setting', item_type='contact_type', item_id=c_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח? פעולה זו תמחק גם את כל הסטטוסים המשויכים.');">
-              <button type="submit">מחק</button>
+            <span class="item-name">{{ c_type.name }}</span>
+            <form class="edit-form" action="{{ url_for('edit_setting', item_type='contact_type', item_id=c_type.id) }}" method="post">
+                <input type="text" name="name" value="{{ c_type.name }}" required>
+                <button type="submit" class="btn btn-success">שמור</button>
             </form>
-          </div>
+            <div class="item-actions">
+                <button type="button" class="edit-btn">ערוך</button>
+                <form action="{{ url_for('delete_setting', item_type='contact_type', item_id=c_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח? פעולה זו תמחק גם את כל הסטטוסים המשויכים.');">
+                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                </form>
+            </div>
         </li>
         {% endfor %}
-      </ul>
-    </div>
+    </ul>
+</div>
 
-    {% for c_type in contact_types %}
-    <div style="border: 1px solid #007bff; padding: 15px; margin-bottom: 20px;">
-      <h3>ניהול סטטוסים עבור: {{ c_type.name }}</h3>
-      <form action="{{ url_for('add_status') }}" method="post">
+{% for c_type in contact_types %}
+<div class="settings-section">
+    <h3>ניהול סטטוסים עבור: {{ c_type.name }}</h3>
+    <form action="{{ url_for('add_status') }}" method="post" class="add-form">
         <input type="hidden" name="contact_type_id" value="{{ c_type.id }}">
-        <input type="text" name="name" placeholder="שם סטטוס חדש" required> <button type="submit">הוסף סטטוס</button>
-      </form>
-      <ul class="item-list">
+        <input type="text" name="name" placeholder="שם סטטוס חדש" required>
+        <button type="submit" class="btn btn-primary">הוסף</button>
+    </form>
+    <ul class="item-list">
         {% for status in c_type.statuses %}
         <li>
-          <span class="item-name">{{ status.name }}</span>
-          <form class="edit-form" action="{{ url_for('edit_setting', item_type='status', item_id=status.id) }}" method="post">
-            <input type="text" name="name" value="{{ status.name }}" required> <button type="submit">שמור</button>
-          </form>
-          <div class="item-actions">
-            <button type="button" class="edit-btn">ערוך</button>
-            <form action="{{ url_for('delete_setting', item_type='status', item_id=status.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
-              <button type="submit">מחק</button>
+            <span class="item-name">{{ status.name }}</span>
+            <form class="edit-form" action="{{ url_for('edit_setting', item_type='status', item_id=status.id) }}" method="post">
+                <input type="text" name="name" value="{{ status.name }}" required>
+                <button type="submit" class="btn btn-success">שמור</button>
             </form>
-          </div>
+            <div class="item-actions">
+                <button type="button" class="edit-btn">ערוך</button>
+                <form action="{{ url_for('delete_setting', item_type='status', item_id=status.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
+                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                </form>
+            </div>
         </li>
         {% endfor %}
-      </ul>
-    </div>
-    {% endfor %}
+    </ul>
+</div>
+{% endfor %}
 
-    <hr>
+<div class="settings-section">
     <h2>ניהול סוגי התקשרות</h2>
-    <div style="border: 1px solid #28a745; padding: 15px; margin-bottom: 20px;">
-      <h3>הוסף סוג התקשרות חדש</h3>
-      <form action="{{ url_for('add_activity_type') }}" method="post">
-        <input type="text" name="name" placeholder="שם הסוג" required> <button type="submit">הוסף</button>
-      </form>
-      <ul class="item-list">
+    <form action="{{ url_for('add_activity_type') }}" method="post" class="add-form">
+        <input type="text" name="name" placeholder="שם הסוג" required>
+        <button type="submit" class="btn btn-primary">הוסף</button>
+    </form>
+    <ul class="item-list">
         {% for a_type in activity_types %}
         <li>
-          <span class="item-name">{{ a_type.name }}</span>
-          <form class="edit-form" action="{{ url_for('edit_setting', item_type='activity_type', item_id=a_type.id) }}" method="post">
-            <input type="text" name="name" value="{{ a_type.name }}" required> <button type="submit">שמור</button>
-          </form>
-          <div class="item-actions">
-            <button type="button" class="edit-btn">ערוך</button>
-            <form action="{{ url_for('delete_setting', item_type='activity_type', item_id=a_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
-              <button type="submit">מחק</button>
+            <span class="item-name">{{ a_type.name }}</span>
+            <form class="edit-form" action="{{ url_for('edit_setting', item_type='activity_type', item_id=a_type.id) }}" method="post">
+                <input type="text" name="name" value="{{ a_type.name }}" required>
+                <button type="submit" class="btn btn-success">שמור</button>
             </form>
-          </div>
+            <div class="item-actions">
+                <button type="button" class="edit-btn">ערוך</button>
+                <form action="{{ url_for('delete_setting', item_type='activity_type', item_id=a_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
+                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                </form>
+            </div>
         </li>
         {% endfor %}
-      </ul>
-    </div>
+    </ul>
 </div>
 
 <script>

@@ -1,68 +1,98 @@
 {% extends "base.html" %}
 
-{% block content %}
-  <div style="display: flex; justify-content: space-between; align-items: center;">
-    <h1>כרטיס לקוח: {{ contact.name }}</h1>
-    <button type="button" id="edit-btn">עריכה</button>
-  </div>
-  
-  <form action="{{ url_for('edit_contact', contact_id=contact.id) }}" method="post" id="edit-contact-form">
-    <fieldset id="contact-fieldset" disabled>
-        <p><strong>שם:</strong> <input type="text" name="name" value="{{ contact.name }}"></p>
-        <p><strong>אימייל:</strong> <input type="email" name="email" value="{{ contact.email or '' }}"></p>
-        <p><strong>טלפון:</strong> <input type="tel" name="phone" value="{{ contact.phone or '' }}"></p>
-        <p>
-            <strong>סוג רישום:</strong>
-            <select name="contact_type_id" id="contact_type_id">
-                <option value="">--- בחר סוג ---</option>
-                {% for c_type in contact_types %}
-                <option value="{{ c_type.id }}" {% if contact.contact_type_id == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
-                {% endfor %}
-            </select>
-        </p>
-        <p>
-            <strong>סטטוס:</strong>
-            <select name="status_id" id="status_id">
-                </select>
-        </p>
-    </fieldset>
-    <button type="submit" id="save-btn" style="display:none; margin-top:10px;">שמור שינויים</button>
-  </form>
-  
-  <hr>
+{% block head %}
+{{ super() }}
+<style>
+    .header-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    #edit-contact-form p {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+    #edit-contact-form strong { font-weight: 500; }
+    #edit-contact-form input, #edit-contact-form select { margin-bottom: 0; }
+    
+    .activity-history-item {
+        border: 1px solid var(--border-color);
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: var(--border-radius);
+        background-color: #fdfdff;
+    }
+    .activity-history-item p { margin: 0 0 8px 0; }
+</style>
+{% endblock %}
 
-  <h2>הוסף פעילות חדשה</h2>
-  <form action="{{ url_for('add_activity', contact_id=contact.id) }}" method="post">
-    <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 10px;">
+{% block content %}
+<div class="header-flex">
+    <h1>כרטיס לקוח: {{ contact.name }}</h1>
+    <button type="button" id="edit-btn" class="btn btn-primary">עריכה</button>
+</div>
+
+<div class="card">
+    <form action="{{ url_for('edit_contact', contact_id=contact.id) }}" method="post" id="edit-contact-form">
+        <fieldset id="contact-fieldset" disabled style="border:none; padding:0;">
+            <p><strong>שם:</strong> <input type="text" name="name" value="{{ contact.name }}"></p>
+            <p><strong>אימייל:</strong> <input type="email" name="email" value="{{ contact.email or '' }}"></p>
+            <p><strong>טלפון:</strong> <input type="tel" name="phone" value="{{ contact.phone or '' }}"></p>
+            <p>
+                <strong>סוג רישום:</strong>
+                <select name="contact_type_id" id="contact_type_id">
+                    <option value="">--- בחר סוג ---</option>
+                    {% for c_type in contact_types %}
+                    <option value="{{ c_type.id }}" {% if contact.contact_type_id == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
+                    {% endfor %}
+                </select>
+            </p>
+            <p>
+                <strong>סטטוס:</strong>
+                <select name="status_id" id="status_id"></select>
+            </p>
+        </fieldset>
+        <button type="submit" id="save-btn" class="btn btn-success" style="display:none; margin-top:10px;">שמור שינויים</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>הוסף פעילות חדשה</h2>
+    <form action="{{ url_for('add_activity', contact_id=contact.id) }}" method="post">
         <label for="activity_type_id">סוג התקשרות:</label>
-        <select name="activity_type_id" id="activity_type_id">
+        <select name="activity_type_id" id="activity_type_id" style="margin-bottom: 15px;">
             <option value="">--- בחר סוג ---</option>
             {% for a_type in activity_types %}
             <option value="{{ a_type.id }}">{{ a_type.name }}</option>
             {% endfor %}
         </select>
-    </div>
-    <textarea name="description" rows="3" style="width:100%;" placeholder="תיאור הפעילות..." required></textarea>
-    <br><br>
-    <button type="submit">הוסף תיעוד</button>
-  </form>
+        
+        <label for="description">תיאור הפעילות:</label>
+        <textarea name="description" id="description" rows="3" placeholder="תיאור הפעילות..." required></textarea>
+        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">הוסף תיעוד</button>
+    </form>
+</div>
 
-  <hr>
+<div class="card">
+    <h2>היסטוריית פעילויות</h2>
+    {% for activity in activities %}
+        <div class="activity-history-item">
+            <p>
+                <strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
+                {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
+            </p>
+            <p>{{ activity.description }}</p>
+        </div>
+    {% else %}
+        <p>אין עדיין פעילויות מתועדות.</p>
+    {% endfor %}
+</div>
 
-  <h2>היסטוריית פעילויות</h2>
-  {% for activity in activities %}
-    <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
-      <p>
-        <strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
-        {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
-      </p>
-      <p>{{ activity.description }}</p>
-    </div>
-  {% else %}
-    <p>אין עדיין פעילויות מתועדות.</p>
-  {% endfor %}
-
-  <script>
+<script>
     // JS לעריכת פרטי הלקוח
     const editBtn = document.getElementById('edit-btn');
     const saveBtn = document.getElementById('save-btn');
@@ -80,8 +110,8 @@
             { id: {{ status.id }}, name: '{{ status.name }}', type_id: {{ status.contact_type_id }} },
         {% endfor %}
     ];
-    const contactTypeId = '{{ contact.contact_type_id or '' }}';
-    const statusId = '{{ contact.status_id or '' }}';
+    let contactTypeId = '{{ contact.contact_type_id or '' }}';
+    let statusId = '{{ contact.status_id or '' }}';
 
     const typeSelect = document.getElementById('contact_type_id');
     const statusSelect = document.getElementById('status_id');
@@ -95,14 +125,16 @@
                 const option = document.createElement('option');
                 option.value = status.id;
                 option.textContent = status.name;
+                // On first load, select the saved status. On change, this won't apply.
                 if (status.id.toString() === statusId) {
                     option.selected = true;
                 }
                 statusSelect.appendChild(option);
             });
         }
+        statusId = ''; // Clear statusId after first load to prevent re-selecting old status on type change
     }
     typeSelect.addEventListener('change', updateStatusOptions);
     document.addEventListener('DOMContentLoaded', updateStatusOptions);
-  </script>
+</script>
 {% endblock %}
