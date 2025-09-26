@@ -55,6 +55,15 @@
                 <strong>סטטוס:</strong>
                 <select name="status_id" id="status_id"></select>
             </p>
+
+            <hr>
+            <h4>שדות מותאמים אישית</h4>
+            {% for field in custom_fields %}
+            <p>
+                <strong>{{ field.name }}:</strong>
+                <input type="text" name="custom_{{ field.id }}" value="{{ contact_custom_values.get(field.id, '') }}">
+            </p>
+            {% endfor %}
         </fieldset>
         <button type="submit" id="save-btn" class="btn btn-success" style="display:none; margin-top:10px;">שמור שינויים</button>
     </form>

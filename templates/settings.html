@@ -129,6 +129,33 @@
     </ul>
 </div>
 
+<div class="settings-section" style="border: 2px solid #ffc107;">
+    <h2>ניהול שדות מותאמים אישית</h2>
+    <h3>הוסף שדה חדש לכרטיס הלקוח</h3>
+    <form action="{{ url_for('add_custom_field') }}" method="post" class="add-form">
+        <input type="text" name="name" placeholder="שם השדה (לדוגמה: טלפון נוסף)" required>
+        <button type="submit" class="btn btn-primary">הוסף שדה</button>
+    </form>
+    <h4>שדות קיימים:</h4>
+    <ul class="item-list">
+        {% for field in custom_fields %}
+        <li>
+            <span class="item-name">{{ field.name }}</span>
+            <form class="edit-form" action="{{ url_for('edit_custom_field', field_id=field.id) }}" method="post">
+                <input type="text" name="name" value="{{ field.name }}" required>
+                <button type="submit" class="btn btn-success">שמור</button>
+            </form>
+            <div class="item-actions">
+                <button type="button" class="edit-btn">ערוך</button>
+                <form action="{{ url_for('delete_custom_field', field_id=field.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח? פעולה זו תמחק את השדה ואת כל הנתונים שהוזנו בו בכל כרטיסי הלקוח.');">
+                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
 <script>
 document.querySelectorAll('.edit-btn').forEach(button => {
     button.addEventListener('click', event => {
