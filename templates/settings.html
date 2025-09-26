@@ -3,60 +3,25 @@
 {% block head %}
 {{ super() }}
 <style>
-  .settings-section {
-    background-color: var(--panel-bg-color);
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow);
-    padding: 25px;
-    margin-bottom: 25px;
-  }
-  .settings-section h2, .settings-section h3 {
-    margin-top: 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
-  }
-  .add-form {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    align-items: center;
-  }
+  .settings-section { margin-bottom: 25px; }
+  .add-form { display: flex; gap: 10px; margin-bottom: 20px; }
   .add-form input { flex-grow: 1; margin-bottom: 0; }
-
   .item-list { list-style: none; padding: 0; }
-  .item-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 5px;
-    border-bottom: 1px solid #eee;
-  }
-  .item-list li:last-child { border-bottom: none; }
-  
+  .item-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #eee; }
   .item-actions { display: flex; gap: 10px; }
   .edit-form { display: none; gap: 10px; width: 100%; }
-  .edit-form input { flex-grow: 1; margin-bottom: 0; }
-  .edit-btn, .delete-btn {
-    padding: 5px 10px;
-    font-size: 0.9em;
-    border: 1px solid var(--border-color);
-    background-color: #fff;
-    cursor: pointer;
-  }
 </style>
 {% endblock %}
 
 {% block content %}
 <h1>הגדרות מערכת</h1>
 
-<div class="settings-section">
+<div class="card settings-section">
     <h2>ניהול סוגי רישום</h2>
-    <h3>הוסף סוג רישום חדש</h3>
     <form action="{{ url_for('add_contact_type') }}" method="post" class="add-form">
-        <input type="text" name="name" placeholder="שם הסוג" required>
+        <input type="text" name="name" placeholder="הוסף סוג חדש (למשל: ליד, לקוח)" required>
         <button type="submit" class="btn btn-primary">הוסף</button>
     </form>
-    <h4>סוגים קיימים:</h4>
     <ul class="item-list">
         {% for c_type in contact_types %}
         <li>
@@ -67,8 +32,8 @@
             </form>
             <div class="item-actions">
                 <button type="button" class="edit-btn">ערוך</button>
-                <form action="{{ url_for('delete_setting', item_type='contact_type', item_id=c_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח? פעולה זו תמחק גם את כל הסטטוסים המשויכים.');">
-                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                <form action="{{ url_for('delete_setting', item_type='contact_type', item_id=c_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?');">
+                    <button type="submit" class="btn btn-danger">מחק</button>
                 </form>
             </div>
         </li>
@@ -77,11 +42,11 @@
 </div>
 
 {% for c_type in contact_types %}
-<div class="settings-section">
+<div class="card settings-section">
     <h3>ניהול סטטוסים עבור: {{ c_type.name }}</h3>
     <form action="{{ url_for('add_status') }}" method="post" class="add-form">
         <input type="hidden" name="contact_type_id" value="{{ c_type.id }}">
-        <input type="text" name="name" placeholder="שם סטטוס חדש" required>
+        <input type="text" name="name" placeholder="הוסף סטטוס חדש" required>
         <button type="submit" class="btn btn-primary">הוסף</button>
     </form>
     <ul class="item-list">
@@ -95,7 +60,7 @@
             <div class="item-actions">
                 <button type="button" class="edit-btn">ערוך</button>
                 <form action="{{ url_for('delete_setting', item_type='status', item_id=status.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
-                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                    <button type="submit" class="btn btn-danger">מחק</button>
                 </form>
             </div>
         </li>
@@ -104,10 +69,10 @@
 </div>
 {% endfor %}
 
-<div class="settings-section">
+<div class="card settings-section">
     <h2>ניהול סוגי התקשרות</h2>
     <form action="{{ url_for('add_activity_type') }}" method="post" class="add-form">
-        <input type="text" name="name" placeholder="שם הסוג" required>
+        <input type="text" name="name" placeholder="הוסף סוג חדש (למשל: שיחת טלפון)" required>
         <button type="submit" class="btn btn-primary">הוסף</button>
     </form>
     <ul class="item-list">
@@ -121,7 +86,7 @@
             <div class="item-actions">
                 <button type="button" class="edit-btn">ערוך</button>
                 <form action="{{ url_for('delete_setting', item_type='activity_type', item_id=a_type.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?')">
-                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                    <button type="submit" class="btn btn-danger">מחק</button>
                 </form>
             </div>
         </li>
@@ -129,14 +94,12 @@
     </ul>
 </div>
 
-<div class="settings-section" style="border: 2px solid #ffc107;">
+<div class="card settings-section">
     <h2>ניהול שדות מותאמים אישית</h2>
-    <h3>הוסף שדה חדש לכרטיס הלקוח</h3>
     <form action="{{ url_for('add_custom_field') }}" method="post" class="add-form">
-        <input type="text" name="name" placeholder="שם השדה (לדוגמה: טלפון נוסף)" required>
+        <input type="text" name="name" placeholder="הוסף שדה חדש (למשל: טלפון נוסף)" required>
         <button type="submit" class="btn btn-primary">הוסף שדה</button>
     </form>
-    <h4>שדות קיימים:</h4>
     <ul class="item-list">
         {% for field in custom_fields %}
         <li>
@@ -147,8 +110,8 @@
             </form>
             <div class="item-actions">
                 <button type="button" class="edit-btn">ערוך</button>
-                <form action="{{ url_for('delete_custom_field', field_id=field.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח? פעולה זו תמחק את השדה ואת כל הנתונים שהוזנו בו בכל כרטיסי הלקוח.');">
-                    <button type="submit" class="delete-btn btn-danger" style="color:white;">מחק</button>
+                <form action="{{ url_for('delete_custom_field', field_id=field.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?');">
+                    <button type="submit" class="btn btn-danger">מחק</button>
                 </form>
             </div>
         </li>
