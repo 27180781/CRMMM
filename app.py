@@ -4,6 +4,8 @@ import json
 import base64
 import re
 from email.mime.text import MIMEText
+from email.utils import parseaddr
+
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
@@ -19,12 +21,16 @@ from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
 
 # THIS IS A WORKAROUND FOR DEVELOPMENT/PROXY ISSUES.
-if 'OAUTHLIB_INSECURE_TRANSPORT' in os.environ:
+if 'OAUTHLIB_INSECURE_TRANSPORT' not in os.environ:
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# 1. הגדרת טפסים
+# ===================================================================
+# 1. הגדרת טפסים (Forms)
+# ===================================================================
+
 class RegistrationForm(FlaskForm):
-    email = StringField('אימייל', validators=[DataRequired(), Email()])
+    """טופס הרשמה למשתמש חדש."""
+    email = StringField('אימייל', validators=[DataRequired(), Email(message='אנא הזן כתובת אימייל תקינה.')])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password', message='הסיסמאות חייבות להיות זהות')])
     submit = SubmitField('הרשמה')
@@ -34,18 +40,23 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('כתובת אימייל זו כבר תפוסה.')
 
 class LoginForm(FlaskForm):
+    """טופס התחברות למערכת."""
     email = StringField('אימייל', validators=[DataRequired(), Email()])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     submit = SubmitField('כניסה')
 
 class EmailForm(FlaskForm):
+    """טופס שליחת אימייל."""
     subject = StringField('נושא', validators=[DataRequired()])
     body = TextAreaField('תוכן ההודעה', validators=[DataRequired()])
     submit = SubmitField('שלח מייל')
 
-# 2. הגדרת האפליקציה
+# ===================================================================
+# 2. הגדרת האפליקציה והרחבות
+# ===================================================================
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secret_key_for_development')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secret_key_for_development_change_me')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_POOL_RECYCLE'] = 280
@@ -56,32 +67,36 @@ metadata = MetaData(naming_convention={
     "ck": "ck_%(table_name)s_%(constraint_name)s", "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s"
 })
+
 db = SQLAlchemy(app, metadata=metadata)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+login_manager.login_message = "אנא התחבר כדי לגשת לעמוד זה."
 login_manager.login_message_category = 'info'
 
-# --- THE FIX FOR 'nl2br' IS HERE ---
 @app.template_filter('nl2br')
 def nl2br(s):
     return s.replace('\n', '<br>')
-# ------------------------------------
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 def admin_required(f):
+    """Decorator לבדיקה אם המשתמש הוא מנהל."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
-            abort(403)
+            abort(403)  # Forbidden
         return f(*args, **kwargs)
     return decorated_function
 
-# 3. הגדרת מודלים (Models)
+# ===================================================================
+# 3. הגדרת מודלים (Database Models)
+# ===================================================================
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -89,7 +104,6 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     gmail_credentials_json = db.Column(db.Text, nullable=True)
 
-# ... (All other models remain the same) ...
 class ContactType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -126,8 +140,6 @@ class Activity(db.Model):
     activity_type_id = db.Column(db.Integer, db.ForeignKey('activity_type.id'))
     activity_type = db.relationship('ActivityType', backref='activities')
     gmail_message_id = db.Column(db.String(100), unique=True, nullable=True)
-    # --------------------------
-    contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
 
 class SavedView(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -140,7 +152,6 @@ class CustomField(db.Model):
     field_type = db.Column(db.String(50), default='text')
     api_identifier = db.Column(db.String(100), unique=True, nullable=False)
 
-
 class CustomFieldValue(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     value = db.Column(db.Text, nullable=False)
@@ -149,28 +160,42 @@ class CustomFieldValue(db.Model):
     contact = db.relationship('Contact', backref=db.backref('custom_values', cascade="all, delete-orphan"))
     field = db.relationship('CustomField')
 
-# 4. Routes
+# ===================================================================
+# 4. פונקציות עזר (Helper Functions)
+# ===================================================================
+
 def get_gmail_service(user):
     """
     יוצר אובייקט שירות של Gmail באמצעות ההרשאות השמורות של המשתמש.
-    מחזיר None אם למשתמש אין הרשאות שמורות.
+    מחזיר None אם למשתמש אין הרשאות שמורות או שהן לא תקינות.
     """
     if not user.gmail_credentials_json:
         return None
-    
     try:
-        # טוען את פרטי ההתחברות מה-JSON שנשמר במסד הנתונים
         creds_info = json.loads(user.gmail_credentials_json)
         credentials = google.oauth2.credentials.Credentials.from_authorized_user_info(creds_info)
-
-        # בונה את אובייקט השירות של Gmail
         service = build('gmail', 'v1', credentials=credentials)
         return service
     except Exception as e:
-        print(f"Error creating Gmail service: {e}")
+        print(f"Error creating Gmail service for user {user.email}: {e}")
         return None
 
-# ... (All routes from before, with the fix in `add_activity`) ...
+def _parse_email_parts(parts):
+    """פונקציית עזר רקורסיבית לפענוח גוף המייל מתוך מבנה ה-MIME."""
+    body = ""
+    if parts:
+        for part in parts:
+            if part.get('mimeType') == 'text/plain':
+                body += base64.urlsafe_b64decode(part.get('body').get('data', '')).decode('utf-8', 'ignore')
+            elif 'parts' in part:
+                body += _parse_email_parts(part.get('parts'))
+    return body
+
+# ===================================================================
+# 5. נתיבים (Routes)
+# ===================================================================
+
+# --- נתיבי אימות משתמש ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -209,7 +234,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-
+# --- נתיבי CRM ראשיים ---
 @app.route('/')
 @login_required
 def index():
@@ -230,12 +255,18 @@ def index():
     sort_map = {'created_at_asc': Contact.created_at.asc(), 'updated_at_desc': Contact.updated_at.desc(), 'updated_at_asc': Contact.updated_at.asc()}
     query = query.order_by(sort_map.get(sort_by, Contact.created_at.desc()))
 
-    contacts, contact_types, all_statuses, saved_views = query.all(), ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
+    contacts = query.all()
+    contact_types = ContactType.query.all()
+    all_statuses = Status.query.all()
+    saved_views = SavedView.query.order_by(SavedView.name).all()
+    
+    return render_template('index.html', **locals())
 
-    return render_template('index.html',
-                           contacts=contacts, contact_types=contact_types, all_statuses=all_statuses,
-                           saved_views=saved_views, active_type_filter=contact_type_filter,
-                           active_status_filter=status_filter, active_sort=sort_by)
+@app.route('/communications')
+@login_required
+def communications():
+    all_activities = db.session.query(Activity, Contact).join(Contact).order_by(Activity.timestamp.desc()).all()
+    return render_template('communications.html', all_activities=all_activities)
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -244,6 +275,7 @@ def add_contact():
         new_contact = Contact(name=request.form['name'], email=request.form['email'], phone=request.form['phone'])
         db.session.add(new_contact)
         db.session.commit()
+        flash('איש הקשר נוסף בהצלחה!', 'success')
         return redirect(url_for('index'))
     return render_template('add_contact.html')
 
@@ -257,11 +289,7 @@ def contact_detail(contact_id):
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
     email_form = EmailForm()
     
-    return render_template('contact_detail.html', 
-                           contact=contact, activities=activities, contact_types=contact_types,
-                           statuses=statuses, activity_types=activity_types,
-                           custom_fields=custom_fields, contact_custom_values=contact_custom_values,
-                           email_form=email_form)
+    return render_template('contact_detail.html', **locals())
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 @login_required
@@ -282,6 +310,7 @@ def edit_contact(contact_id):
         elif existing_value: db.session.delete(existing_value)
             
     db.session.commit()
+    flash('פרטי איש הקשר עודכנו בהצלחה!', 'success')
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
@@ -293,6 +322,7 @@ def add_activity(contact_id):
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
+# --- נתיבי אינטגרציית Gmail ---
 @app.route('/contact/<int:contact_id>/send_email', methods=['POST'])
 @login_required
 def send_email(contact_id):
@@ -330,21 +360,9 @@ def send_email(contact_id):
 
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-def _parse_email_parts(parts):
-    """פונקציית עזר רקורסיבית לפענוח גוף המייל."""
-    body = ""
-    if parts:
-        for part in parts:
-            if part.get('mimeType') == 'text/plain':
-                body += base64.urlsafe_b64decode(part.get('body').get('data', '')).decode('utf-8')
-            elif 'parts' in part:
-                body += _parse_email_parts(part.get('parts'))
-    return body
-
 @app.route('/contact/<int:contact_id>/sync_gmail')
 @login_required
 def sync_gmail(contact_id):
-    """סורק את Gmail, מוצא מיילים מאיש הקשר ומוסיף אותם כפעילויות."""
     contact = Contact.query.get_or_404(contact_id)
     if not contact.email:
         flash('לא ניתן לסנכרן מיילים, לאיש קשר זה אין כתובת מייל.', 'warning')
@@ -356,7 +374,6 @@ def sync_gmail(contact_id):
         return redirect(url_for('contact_detail', contact_id=contact.id))
 
     try:
-        # 1. חפש את כל המיילים מהכתובת של איש הקשר
         query = f'from:{contact.email}'
         results = service.users().messages().list(userId='me', q=query).execute()
         messages = results.get('messages', [])
@@ -368,12 +385,9 @@ def sync_gmail(contact_id):
         new_emails_count = 0
         for msg in messages:
             msg_id = msg['id']
-            # 2. בדוק אם כבר סנכרנו את המייל הזה
-            existing_activity = Activity.query.filter_by(gmail_message_id=msg_id).first()
-            if existing_activity:
-                continue # דלג למייל הבא
+            if Activity.query.filter_by(gmail_message_id=msg_id).first():
+                continue
 
-            # 3. אם המייל חדש, הורד את התוכן המלא שלו
             message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
             payload = message_data.get('payload', {})
             headers = payload.get('headers', [])
@@ -385,26 +399,25 @@ def sync_gmail(contact_id):
             if 'parts' in payload:
                 body = _parse_email_parts(payload['parts'])
             elif payload.get('body', {}).get('data'):
-                body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+                body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
 
-            # 4. צור רשומת פעילות חדשה
             activity_description = f"מייל שהתקבל מ-{from_email}\nנושא: {subject}\n\n{body}"
-            activity = Activity(
-                description=activity_description, 
-                contact_id=contact_id, 
-                source="Gmail Sync",
-                gmail_message_id=msg_id # שמירת המזהה למניעת כפילויות
-            )
+            activity = Activity(description=activity_description, contact_id=contact_id, source="Gmail Sync", gmail_message_id=msg_id)
             db.session.add(activity)
             new_emails_count += 1
         
-        db.session.commit()
-        flash(f'סונכרנו {new_emails_count} מיילים חדשים בהצלחה!', 'success')
+        if new_emails_count > 0:
+            db.session.commit()
+            flash(f'סונכרנו {new_emails_count} מיילים חדשים בהצלחה!', 'success')
+        else:
+            flash('לא נמצאו מיילים חדשים מאיש קשר זה.', 'info')
 
     except Exception as e:
         flash(f'שגיאה בסנכרון המיילים: {e}', 'danger')
 
     return redirect(url_for('contact_detail', contact_id=contact.id))
+
+# --- נתיבי הגדרות (דורשים הרשאת מנהל) ---
 @app.route('/settings')
 @login_required
 @admin_required
@@ -412,10 +425,7 @@ def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    return render_template('settings.html', 
-                           contact_types=contact_types, 
-                           activity_types=activity_types,
-                           custom_fields=custom_fields)
+    return render_template('settings.html', **locals())
 
 @app.route('/settings/add_contact_type', methods=['POST'])
 @login_required
@@ -464,29 +474,23 @@ def delete_setting(item_type, item_id):
     model = model_map.get(item_type)
     if model:
         item = model.query.get_or_404(item_id)
-        if item_type == 'contact_type' and item.contacts:
-            flash(f"לא ניתן למחוק את סוג הרישום '{item.name}' מכיוון שיש אנשי קשר המשויכים אליו.", "danger")
-            return redirect(url_for('settings'))
-        if item_type == 'status' and item.contacts:
-            flash(f"לא ניתן למחוק את הסטטוס '{item.name}' מכיוון שיש אנשי קשר המשויכים אליו.", "danger")
+        if item_type in ['contact_type', 'status'] and item.contacts:
+            flash(f"לא ניתן למחוק את '{item.name}' מכיוון שיש ישויות המשויכות אליו.", "danger")
             return redirect(url_for('settings'))
         db.session.delete(item)
         db.session.commit()
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
     
-app.route('/settings/add_custom_field', methods=['POST'])
+@app.route('/settings/add_custom_field', methods=['POST'])
 @login_required
 @admin_required
 def add_custom_field():
     name = request.form.get('name')
     if name:
-        # יצירת מזהה ייחודי ונקי לשדה
-        # "שם השדה 123" -> "custom_field_123"
         temp_identifier = name.lower()
-        temp_identifier = re.sub(r'\s+', '_', temp_identifier) # החלף רווחים בקו תחתון
-        api_id = 'custom_' + re.sub(r'[^a-zA-Z0-9_]', '', temp_identifier) # נקה תווים לא חוקיים
+        temp_identifier = re.sub(r'\s+', '_', temp_identifier)
+        api_id = 'custom_' + re.sub(r'[^a-zA-Z0-9_]', '', temp_identifier)
 
-        # בדוק אם המזהה כבר קיים
         if CustomField.query.filter_by(api_identifier=api_id).first():
             flash(f"שדה עם מזהה API דומה ('{api_id}') כבר קיים. אנא בחר שם אחר.", "danger")
             return redirect(url_for('settings'))
@@ -496,12 +500,7 @@ def add_custom_field():
         db.session.commit()
         flash("השדה המותאם נוצר בהצלחה!", "success")
     return redirect(url_for('settings'))
-@app.route('/communications')
-@login_required
-def communications():
-    # שלוף את כל הפעילויות, עם פרטי איש הקשר המשויך, ממוינות מהחדש לישן
-    all_activities = db.session.query(Activity, Contact).join(Contact).order_by(Activity.timestamp.desc()).all()
-    return render_template('communications.html', all_activities=all_activities)
+
 @app.route('/settings/edit/custom_field/<int:field_id>', methods=['POST'])
 @login_required
 @admin_required
@@ -521,6 +520,7 @@ def delete_custom_field(field_id):
     db.session.commit()
     return redirect(url_for('settings'))
 
+# --- נתיבי ניהול משתמשים ---
 @app.route('/settings/users')
 @login_required
 @admin_required
@@ -556,7 +556,7 @@ def delete_user(user_id):
         flash(f'המשתמש {user_to_delete.email} נמחק בהצלחה.', 'success')
     return redirect(url_for('manage_users'))
 
-# --- Gmail & API Routes ---
+# --- נתיבי API וחיבורים חיצוניים ---
 def create_client_secret_file():
     client_id = os.environ.get('GOOGLE_CLIENT_ID')
     client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
@@ -585,7 +585,7 @@ def authorize_gmail():
         
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json',
-        scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+        scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.modify'],
         redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
     )
     authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
@@ -621,9 +621,9 @@ def save_view():
 @app.route('/api/lead', methods=['POST'])
 def handle_lead():
     data = request.get_json()
-    if not data: return {"error": "Invalid request. Expecting JSON data."}, 400
+    if not data: return jsonify({"error": "Invalid request. Expecting JSON data."}), 400
     email, phone = data.get('email'), data.get('phone')
-    if not email and not phone: return {"error": "Either email or phone is required."}, 400
+    if not email and not phone: return jsonify({"error": "Either email or phone is required."}), 400
     contact = None
     if email: contact = Contact.query.filter_by(email=email).first()
     if not contact and phone: contact = Contact.query.filter_by(phone=phone).first()
@@ -637,3 +637,81 @@ def handle_lead():
     db.session.add(new_activity)
     db.session.commit()
     return jsonify({"success": True, "message": "Lead processed successfully.", "contact_id": contact.id}), 201
+
+# ===================================================================
+# 6. לוגיקה לסנכרון ברקע (לשימוש עם Celery/APScheduler/Cron)
+# ===================================================================
+
+def run_full_gmail_sync():
+    """
+    סורק את כל חשבונות ה-Gmail המחוברים, מוסיף פעילויות לאנשי קשר קיימים,
+    ויוצר אנשי קשר חדשים ממיילים לא מוכרים.
+    יש להריץ פונקציה זו מתוך קונטקסט של האפליקציה.
+    """
+    with app.app_context():
+        users_with_gmail = User.query.filter(User.gmail_credentials_json.isnot(None)).all()
+        print(f"מתחיל סנכרון רקע. נמצאו {len(users_with_gmail)} משתמשים עם חיבור Gmail.")
+
+        for user in users_with_gmail:
+            service = get_gmail_service(user)
+            if not service:
+                print(f"שגיאה ביצירת שירות Gmail עבור {user.email}. מדלג.")
+                continue
+
+            try:
+                results = service.users().messages().list(userId='me', q='is:unread in:inbox').execute()
+                messages = results.get('messages', [])
+                
+                if not messages:
+                    print(f"לא נמצאו מיילים חדשים עבור {user.email}.")
+                    continue
+                
+                print(f"נמצאו {len(messages)} מיילים חדשים עבור {user.email}.")
+
+                for msg in messages:
+                    msg_id = msg['id']
+                    
+                    if Activity.query.filter_by(gmail_message_id=msg_id).first():
+                        continue
+
+                    message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+                    payload = message_data.get('payload', {})
+                    headers = payload.get('headers', [])
+                    
+                    from_header = next((h['value'] for h in headers if h['name'].lower() == 'from'), '')
+                    sender_name, sender_email = parseaddr(from_header)
+
+                    if not sender_email: continue
+
+                    contact = Contact.query.filter_by(email=sender_email).first()
+
+                    if not contact:
+                        contact = Contact(name=sender_name or sender_email, email=sender_email)
+                        db.session.add(contact)
+                        db.session.flush()
+                        print(f"נוצר איש קשר חדש: {contact.name} ({contact.email})")
+
+                    subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'ללא נושא')
+                    body = ""
+                    if 'parts' in payload:
+                        body = _parse_email_parts(payload['parts'])
+                    elif payload.get('body', {}).get('data'):
+                        body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
+
+                    activity_description = f"מייל שהתקבל מ-{sender_email}\nנושא: {subject}\n\n{body}"
+                    activity = Activity(
+                        description=activity_description, 
+                        contact_id=contact.id, 
+                        source="Gmail Sync (Auto)",
+                        gmail_message_id=msg_id
+                    )
+                    db.session.add(activity)
+                    print(f"נוספה פעילות חדשה לאיש הקשר {contact.name}")
+
+                    service.users().messages().modify(userId='me', id=msg_id, body={'removeLabelIds': ['UNREAD']}).execute()
+
+                db.session.commit()
+
+            except Exception as e:
+                print(f"שגיאה קריטית בסנכרון עבור {user.email}: {e}")
+                db.session.rollback()
