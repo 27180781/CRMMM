@@ -3,108 +3,141 @@
 {% block head %}
 {{ super() }}
 <style>
-    .header-flex {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    #edit-contact-form p {
-        display: grid;
-        grid-template-columns: 120px 1fr;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 15px;
-    }
-    #edit-contact-form strong { font-weight: 500; }
-    #edit-contact-form input, #edit-contact-form select { margin-bottom: 0; }
-    
-    .activity-history-item {
-        border: 1px solid var(--border-color);
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: var(--border-radius);
-        background-color: #fdfdff;
-    }
-    .activity-history-item p { margin: 0 0 8px 0; }
+    .tabs { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 20px; }
+    .tab-link { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 1.1em; }
+    .tab-link.active { border-bottom: 2px solid var(--primary-color); font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="header-flex">
     <h1>כרטיס לקוח: {{ contact.name }}</h1>
-    <button type="button" id="edit-btn" class="btn btn-primary">עריכה</button>
+    <button type="button" id="edit-details-btn" class="btn btn-primary">ערוך פרטים</button>
 </div>
 
-<div class="card">
-    <form action="{{ url_for('edit_contact', contact_id=contact.id) }}" method="post" id="edit-contact-form">
-        <fieldset id="contact-fieldset" disabled style="border:none; padding:0;">
-            <p><strong>שם:</strong> <input type="text" name="name" value="{{ contact.name }}"></p>
-            <p><strong>אימייל:</strong> <input type="email" name="email" value="{{ contact.email or '' }}"></p>
-            <p><strong>טלפון:</strong> <input type="tel" name="phone" value="{{ contact.phone or '' }}"></p>
-            <p>
-                <strong>סוג רישום:</strong>
-                <select name="contact_type_id" id="contact_type_id">
-                    <option value="">--- בחר סוג ---</option>
-                    {% for c_type in contact_types %}
-                    <option value="{{ c_type.id }}" {% if contact.contact_type_id == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
-                    {% endfor %}
-                </select>
-            </p>
-            <p>
-                <strong>סטטוס:</strong>
-                <select name="status_id" id="status_id"></select>
-            </p>
-
-            <hr>
-            <h4>שדות מותאמים אישית</h4>
-            {% for field in custom_fields %}
-            <p>
-                <strong>{{ field.name }}:</strong>
-                <input type="text" name="custom_{{ field.id }}" value="{{ contact_custom_values.get(field.id, '') }}">
-            </p>
-            {% endfor %}
-        </fieldset>
-        <button type="submit" id="save-btn" class="btn btn-success" style="display:none; margin-top:10px;">שמור שינויים</button>
-    </form>
+<div class="tabs">
+    <button class="tab-link active" onclick="openTab(event, 'details')">פרטים</button>
+    <button class="tab-link" onclick="openTab(event, 'history')">היסטוריית פעילויות</button>
+    <button class="tab-link" onclick="openTab(event, 'email')">שלח אימייל</button>
 </div>
 
-<div class="card">
-    <h2>הוסף פעילות חדשה</h2>
-    <form action="{{ url_for('add_activity', contact_id=contact.id) }}" method="post">
-        <label for="activity_type_id">סוג התקשרות:</label>
-        <select name="activity_type_id" id="activity_type_id" style="margin-bottom: 15px;">
-            <option value="">--- בחר סוג ---</option>
-            {% for a_type in activity_types %}
-            <option value="{{ a_type.id }}">{{ a_type.name }}</option>
-            {% endfor %}
-        </select>
-        
-        <label for="description">תיאור הפעילות:</label>
-        <textarea name="description" id="description" rows="3" placeholder="תיאור הפעילות..." required></textarea>
-        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">הוסף תיעוד</button>
-    </form>
+<div id="details" class="tab-content active">
+    <div class="card">
+        <h2>פרטי איש קשר</h2>
+        <form action="{{ url_for('edit_contact', contact_id=contact.id) }}" method="post" id="edit-contact-form">
+            <fieldset id="contact-fieldset" disabled style="border:none; padding:0;">
+                <p><strong>שם:</strong> <input type="text" name="name" value="{{ contact.name }}"></p>
+                <p><strong>אימייל:</strong> <input type="email" name="email" value="{{ contact.email or '' }}"></p>
+                <p><strong>טלפון:</strong> <input type="tel" name="phone" value="{{ contact.phone or '' }}"></p>
+                <p>
+                    <strong>סוג רישום:</strong>
+                    <select name="contact_type_id" id="contact_type_id">
+                        <option value="">--- בחר סוג ---</option>
+                        {% for c_type in contact_types %}
+                        <option value="{{ c_type.id }}" {% if contact.contact_type_id == c_type.id %}selected{% endif %}>{{ c_type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </p>
+                <p>
+                    <strong>סטטוס:</strong>
+                    <select name="status_id" id="status_id"></select>
+                </p>
+                <hr>
+                <h4>שדות מותאמים אישית</h4>
+                {% for field in custom_fields %}
+                <p>
+                    <strong>{{ field.name }}:</strong>
+                    <input type="text" name="custom_{{ field.id }}" value="{{ contact_custom_values.get(field.id, '') }}">
+                </p>
+                {% endfor %}
+            </fieldset>
+            <button type="submit" id="save-details-btn" class="btn btn-success" style="display:none; margin-top:10px;">שמור שינויים</button>
+        </form>
+    </div>
 </div>
 
-<div class="card">
-    <h2>היסטוריית פעילויות</h2>
-    {% for activity in activities %}
-        <div class="activity-history-item">
-            <p>
-                <strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
-                {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
-            </p>
-            <p>{{ activity.description }}</p>
-        </div>
-    {% else %}
-        <p>אין עדיין פעילויות מתועדות.</p>
-    {% endfor %}
+<div id="history" class="tab-content">
+    <div class="card">
+        <h2>הוסף פעילות חדשה</h2>
+        <form action="{{ url_for('add_activity', contact_id=contact.id) }}" method="post">
+            <label for="activity_type_id">סוג התקשרות:</label>
+            <select name="activity_type_id" id="activity_type_id">
+                <option value="">--- בחר סוג ---</option>
+                {% for a_type in activity_types %}
+                <option value="{{ a_type.id }}">{{ a_type.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="description">תיאור הפעילות:</label>
+            <textarea name="description" id="description" rows="3" required></textarea>
+            <button type="submit" class="btn btn-primary" style="margin-top: 10px;">הוסף תיעוד</button>
+        </form>
+    </div>
+    <div class="card">
+        <h2>היסטוריית פעילויות</h2>
+        {% for activity in activities %}
+            <div class="activity-history-item">
+                <p>
+                    <strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
+                    {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
+                </p>
+                <p>{{ activity.description | nl2br }}</p>
+            </div>
+        {% else %}
+            <p>אין עדיין פעילויות מתועדות.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="email" class="tab-content">
+    <div class="card">
+        <h2>שליחת אימייל ל: {{ contact.name }}</h2>
+        {% if current_user.gmail_credentials_json %}
+            {% if contact.email %}
+                <form method="POST" action="{{ url_for('send_email', contact_id=contact.id) }}">
+                    {{ email_form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ email_form.subject.label }}
+                        {{ email_form.subject(class="form-control", placeholder="נושא המייל") }}
+                    </div>
+                    <div class="form-group">
+                        {{ email_form.body.label }}
+                        {{ email_form.body(class="form-control", rows="8", placeholder="כתוב את הודעתך כאן...") }}
+                    </div>
+                    <div class="form-group">
+                        {{ email_form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            {% else %}
+                <p>לא ניתן לשלוח מייל. לאיש קשר זה אין כתובת אימייל שמורה.</p>
+            {% endif %}
+        {% else %}
+            <p>עליך לחבר את חשבון ה-Gmail שלך כדי לשלוח מיילים.</p>
+            <a href="{{ url_for('settings') }}" class="btn">לך להגדרות</a>
+        {% endif %}
+    </div>
 </div>
 
 <script>
+    // JS לניהול הלשוניות
+    function openTab(evt, tabName) {
+        let i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tab-link");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+
     // JS לעריכת פרטי הלקוח
-    const editBtn = document.getElementById('edit-btn');
-    const saveBtn = document.getElementById('save-btn');
+    const editBtn = document.getElementById('edit-details-btn');
+    const saveBtn = document.getElementById('save-details-btn');
     const fieldset = document.getElementById('contact-fieldset');
 
     editBtn.addEventListener('click', () => {
@@ -119,7 +152,6 @@
             { id: {{ status.id }}, name: '{{ status.name }}', type_id: {{ status.contact_type_id }} },
         {% endfor %}
     ];
-    let contactTypeId = '{{ contact.contact_type_id or '' }}';
     let statusId = '{{ contact.status_id or '' }}';
 
     const typeSelect = document.getElementById('contact_type_id');
@@ -134,14 +166,13 @@
                 const option = document.createElement('option');
                 option.value = status.id;
                 option.textContent = status.name;
-                // On first load, select the saved status. On change, this won't apply.
                 if (status.id.toString() === statusId) {
                     option.selected = true;
                 }
                 statusSelect.appendChild(option);
             });
         }
-        statusId = ''; // Clear statusId after first load to prevent re-selecting old status on type change
+        statusId = '';
     }
     typeSelect.addEventListener('change', updateStatusOptions);
     document.addEventListener('DOMContentLoaded', updateStatusOptions);
