@@ -2,6 +2,7 @@ import os
 import datetime
 import json
 import base64
+import re
 from email.mime.text import MIMEText
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
@@ -137,6 +138,8 @@ class CustomField(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     field_type = db.Column(db.String(50), default='text')
+    api_identifier = db.Column(db.String(100), unique=True, nullable=False)
+
 
 class CustomFieldValue(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -471,15 +474,34 @@ def delete_setting(item_type, item_id):
         db.session.commit()
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
     
-@app.route('/settings/add_custom_field', methods=['POST'])
+app.route('/settings/add_custom_field', methods=['POST'])
 @login_required
 @admin_required
 def add_custom_field():
-    if request.form.get('name'):
-        db.session.add(CustomField(name=request.form.get('name')))
-        db.session.commit()
-    return redirect(url_for('settings'))
+    name = request.form.get('name')
+    if name:
+        # יצירת מזהה ייחודי ונקי לשדה
+        # "שם השדה 123" -> "custom_field_123"
+        temp_identifier = name.lower()
+        temp_identifier = re.sub(r'\s+', '_', temp_identifier) # החלף רווחים בקו תחתון
+        api_id = 'custom_' + re.sub(r'[^a-zA-Z0-9_]', '', temp_identifier) # נקה תווים לא חוקיים
 
+        # בדוק אם המזהה כבר קיים
+        if CustomField.query.filter_by(api_identifier=api_id).first():
+            flash(f"שדה עם מזהה API דומה ('{api_id}') כבר קיים. אנא בחר שם אחר.", "danger")
+            return redirect(url_for('settings'))
+
+        new_field = CustomField(name=name, api_identifier=api_id)
+        db.session.add(new_field)
+        db.session.commit()
+        flash("השדה המותאם נוצר בהצלחה!", "success")
+    return redirect(url_for('settings'))
+@app.route('/communications')
+@login_required
+def communications():
+    # שלוף את כל הפעילויות, עם פרטי איש הקשר המשויך, ממוינות מהחדש לישן
+    all_activities = db.session.query(Activity, Contact).join(Contact).order_by(Activity.timestamp.desc()).all()
+    return render_template('communications.html', all_activities=all_activities)
 @app.route('/settings/edit/custom_field/<int:field_id>', methods=['POST'])
 @login_required
 @admin_required
