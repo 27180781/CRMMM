@@ -33,7 +33,7 @@ class LoginForm(FlaskForm):
 
 # 2. הגדרת האפליקציה
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'a_very_secret_key_that_should_be_changed'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secret_key_for_development')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_POOL_RECYCLE'] = 280
@@ -70,7 +70,7 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(60), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     gmail_credentials_json = db.Column(db.Text, nullable=True)
-
+# ... (All other models remain the same)
 class ContactType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -126,6 +126,7 @@ class CustomFieldValue(db.Model):
     field = db.relationship('CustomField')
 
 # 4. Routes
+# ... (Authentication, main CRM, and settings routes remain the same)
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -164,6 +165,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+
 @app.route('/')
 @login_required
 def index():
@@ -184,10 +186,7 @@ def index():
     sort_map = {'created_at_asc': Contact.created_at.asc(), 'updated_at_desc': Contact.updated_at.desc(), 'updated_at_asc': Contact.updated_at.asc()}
     query = query.order_by(sort_map.get(sort_by, Contact.created_at.desc()))
 
-    contacts = query.all()
-    contact_types = ContactType.query.all()
-    all_statuses = Status.query.all()
-    saved_views = SavedView.query.order_by(SavedView.name).all()
+    contacts, contact_types, all_statuses, saved_views = query.all(), ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
 
     return render_template('index.html',
                            contacts=contacts, contact_types=contact_types, all_statuses=all_statuses,
@@ -212,8 +211,8 @@ def contact_detail(contact_id):
     contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
-
-    return render_template('contact_detail.html',
+    
+    return render_template('contact_detail.html', 
                            contact=contact, activities=activities, contact_types=contact_types,
                            statuses=statuses, activity_types=activity_types,
                            custom_fields=custom_fields, contact_custom_values=contact_custom_values)
@@ -227,7 +226,7 @@ def edit_contact(contact_id):
     contact.phone = request.form.get('phone')
     contact.contact_type_id = request.form.get('contact_type_id', type=int) or None
     contact.status_id = request.form.get('status_id', type=int) or None
-
+    
     for field in CustomField.query.all():
         value_str = request.form.get(f'custom_{field.id}')
         existing_value = CustomFieldValue.query.filter_by(contact_id=contact.id, field_id=field.id).first()
@@ -235,9 +234,9 @@ def edit_contact(contact_id):
             if existing_value: existing_value.value = value_str
             else: db.session.add(CustomFieldValue(value=value_str, contact_id=contact.id, field_id=field.id))
         elif existing_value: db.session.delete(existing_value)
-
+            
     db.session.commit()
-    return redirect(url_for('contact_detail', contact_id=contact_id))
+    return redirect(url_for('contact_detail', contact_id=contact.id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
 @login_required
@@ -248,7 +247,6 @@ def add_activity(contact_id):
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-# --- Settings and User Management Routes ---
 @app.route('/settings')
 @login_required
 @admin_required
@@ -256,8 +254,8 @@ def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    return render_template('settings.html',
-                           contact_types=contact_types,
+    return render_template('settings.html', 
+                           contact_types=contact_types, 
                            activity_types=activity_types,
                            custom_fields=custom_fields)
 
