@@ -1,6 +1,10 @@
 import os
 import datetime
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort
+import json
+import google.oauth2.credentials
+import google_auth_oauthlib.flow
+from googleapiclient.discovery import build
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import MetaData
@@ -10,10 +14,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
-import json
-import google.oauth2.credentials
-import google_auth_oauthlib.flow
-from googleapiclient.discovery import build
 
 # 1. הגדרת טפסים
 class RegistrationForm(FlaskForm):
@@ -261,7 +261,6 @@ def settings():
                            activity_types=activity_types,
                            custom_fields=custom_fields)
 
-# ... (All other settings routes need @admin_required)
 @app.route('/settings/add_contact_type', methods=['POST'])
 @login_required
 @admin_required
@@ -318,7 +317,7 @@ def delete_setting(item_type, item_id):
         db.session.delete(item)
         db.session.commit()
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
-
+    
 @app.route('/settings/add_custom_field', methods=['POST'])
 @login_required
 @admin_required
@@ -433,7 +432,6 @@ def oauth2callback():
     flash('חשבון Gmail חובר בהצלחה!', 'success')
     return redirect(url_for('settings'))
 
-# ... (API routes remain the same)
 @app.route('/api/save_view', methods=['POST'])
 @login_required
 def save_view():
