@@ -3,6 +3,8 @@ import datetime
 import json
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
+import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 from googleapiclient.discovery import build
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
 from flask_sqlalchemy import SQLAlchemy
