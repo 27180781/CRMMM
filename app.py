@@ -15,9 +15,13 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
 
-# 1. הגדרת טפסים
+# ===================================================================
+# 1. הגדרת טפסים (Forms)
+# ===================================================================
+
 class RegistrationForm(FlaskForm):
-    email = StringField('אימייל', validators=[DataRequired(), Email()])
+    """טופס הרשמה למשתמש חדש."""
+    email = StringField('אימייל', validators=[DataRequired(), Email(message='אנא הזן כתובת אימייל תקינה.')])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password', message='הסיסמאות חייבות להיות זהות')])
     submit = SubmitField('הרשמה')
@@ -27,13 +31,17 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('כתובת אימייל זו כבר תפוסה.')
 
 class LoginForm(FlaskForm):
+    """טופס התחברות למערכת."""
     email = StringField('אימייל', validators=[DataRequired(), Email()])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     submit = SubmitField('כניסה')
 
-# 2. הגדרת האפליקציה
+# ===================================================================
+# 2. הגדרת האפליקציה והרחבות
+# ===================================================================
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secret_key_for_development')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secret_key_for_development_change_me')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///crm.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_POOL_RECYCLE'] = 280
@@ -44,11 +52,13 @@ metadata = MetaData(naming_convention={
     "ck": "ck_%(table_name)s_%(constraint_name)s", "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s"
 })
+
 db = SQLAlchemy(app, metadata=metadata)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+login_manager.login_message = "אנא התחבר כדי לגשת לעמוד זה."
 login_manager.login_message_category = 'info'
 
 @login_manager.user_loader
@@ -56,21 +66,25 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def admin_required(f):
+    """Decorator לבדיקה אם המשתמש הוא מנהל."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
-            abort(403)
+            abort(403)  # Forbidden
         return f(*args, **kwargs)
     return decorated_function
 
-# 3. הגדרת מודלים
+# ===================================================================
+# 3. הגדרת מודלים (Database Models)
+# ===================================================================
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(60), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     gmail_credentials_json = db.Column(db.Text, nullable=True)
-# ... (All other models remain the same)
+
 class ContactType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -125,8 +139,11 @@ class CustomFieldValue(db.Model):
     contact = db.relationship('Contact', backref=db.backref('custom_values', cascade="all, delete-orphan"))
     field = db.relationship('CustomField')
 
-# 4. Routes
-# ... (Authentication routes remain the same)
+# ===================================================================
+# 4. נתיבים (Routes)
+# ===================================================================
+
+# --- נתיבי אימות משתמש ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -165,11 +182,10 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-
+# --- נתיבי CRM ראשיים ---
 @app.route('/')
 @login_required
 def index():
-    # ... (code remains the same)
     query = Contact.query
     contact_type_filter, status_filter, sort_by = None, [], 'created_at_desc'
     view_id = request.args.get('view_id', type=int)
@@ -187,14 +203,13 @@ def index():
     sort_map = {'created_at_asc': Contact.created_at.asc(), 'updated_at_desc': Contact.updated_at.desc(), 'updated_at_asc': Contact.updated_at.asc()}
     query = query.order_by(sort_map.get(sort_by, Contact.created_at.desc()))
 
-    contacts, contact_types, all_statuses, saved_views = query.all(), ContactType.query.all(), Status.query.all(), SavedView.query.order_by(SavedView.name).all()
+    contacts = query.all()
+    contact_types = ContactType.query.all()
+    all_statuses = Status.query.all()
+    saved_views = SavedView.query.order_by(SavedView.name).all()
+    
+    return render_template('index.html', **locals())
 
-    return render_template('index.html',
-                           contacts=contacts, contact_types=contact_types, all_statuses=all_statuses,
-                           saved_views=saved_views, active_type_filter=contact_type_filter,
-                           active_status_filter=status_filter, active_sort=sort_by)
-
-# ... (add_contact, contact_detail, edit_contact routes remain the same)
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add_contact():
@@ -203,21 +218,21 @@ def add_contact():
         db.session.add(new_contact)
         db.session.commit()
         return redirect(url_for('index'))
-    return render_template('add_contact.html')
+    contact_types = ContactType.query.all()
+    return render_template('add_contact.html', contact_types=contact_types)
 
 @app.route('/contact/<int:contact_id>')
 @login_required
 def contact_detail(contact_id):
     contact = Contact.query.get_or_404(contact_id)
     activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
-    contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
+    contact_types = ContactType.query.all()
+    statuses = Status.query.all()
+    activity_types = ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
     
-    return render_template('contact_detail.html', 
-                           contact=contact, activities=activities, contact_types=contact_types,
-                           statuses=statuses, activity_types=activity_types,
-                           custom_fields=custom_fields, contact_custom_values=contact_custom_values)
+    return render_template('contact_detail.html', **locals())
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 @login_required
@@ -247,11 +262,9 @@ def add_activity(contact_id):
         new_activity = Activity(description=request.form['description'], contact_id=contact_id, activity_type_id=request.form.get('activity_type_id', type=int))
         db.session.add(new_activity)
         db.session.commit()
-    # THE FIX IS HERE: Use contact_id instead of contact.id
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-# --- Settings and User Management Routes ---
-# ... (All settings and user management routes remain the same)
+# --- נתיבי הגדרות (דורשים הרשאת מנהל) ---
 @app.route('/settings')
 @login_required
 @admin_required
@@ -259,10 +272,7 @@ def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    return render_template('settings.html', 
-                           contact_types=contact_types, 
-                           activity_types=activity_types,
-                           custom_fields=custom_fields)
+    return render_template('settings.html', **locals())
 
 @app.route('/settings/add_contact_type', methods=['POST'])
 @login_required
@@ -311,8 +321,9 @@ def delete_setting(item_type, item_id):
     model = model_map.get(item_type)
     if model:
         item = model.query.get_or_404(item_id)
-        if item_type == 'contact_type' and item.contacts: return redirect(url_for('settings'))
-        if item_type == 'status' and item.contacts: return redirect(url_for('settings'))
+        if item_type in ['contact_type', 'status'] and item.contacts:
+            flash(f"לא ניתן למחוק {item.name} מכיוון שיש אנשי קשר המשוייכים אליו.", "danger")
+            return redirect(url_for('settings'))
         db.session.delete(item)
         db.session.commit()
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
@@ -345,6 +356,7 @@ def delete_custom_field(field_id):
     db.session.commit()
     return redirect(url_for('settings'))
 
+# --- נתיבי ניהול משתמשים (דורשים הרשאת מנהל) ---
 @app.route('/settings/users')
 @login_required
 @admin_required
@@ -380,30 +392,37 @@ def delete_user(user_id):
         flash(f'המשתמש {user_to_delete.email} נמחק בהצלחה.', 'success')
     return redirect(url_for('manage_users'))
 
-# --- Gmail & API Routes ---
+# --- נתיבי אינטגרציית Gmail ו-API ---
 def create_client_secret_file():
-    client_config = { "web": {
-            "client_id": os.environ.get('GOOGLE_CLIENT_ID'),
-            "project_id": "y-crm-integration", # Make sure this matches your GCP project ID
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.token.googleapis.com/token",
+    """יוצר קובץ סודות של גוגל ממשתני סביבה."""
+    client_id = os.environ.get('GOOGLE_CLIENT_ID')
+    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    if client_id and client_secret:
+        client_config = { "web": {
+            "client_id": client_id, "project_id": "y-crm-integration",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth", "token_uri": "https://oauth2.googleapis.com/token",
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET')
-    }}
-    with open('client_secret.json', 'w') as f: json.dump(client_config, f)
+            "client_secret": client_secret
+        }}
+        with open('client_secret.json', 'w') as f: json.dump(client_config, f)
+        return True
+    return False
 
 @app.before_request
 def before_request_func():
-    if os.environ.get('GOOGLE_CLIENT_ID'):
+    if 'client_secret.json' not in os.listdir():
         create_client_secret_file()
 
 @app.route('/settings/gmail/authorize')
 @login_required
 def authorize_gmail():
+    if not os.path.exists('client_secret.json'):
+        flash('שירות אינטגרציית Gmail אינו מוגדר. פנה למנהל המערכת.', 'warning')
+        return redirect(url_for('settings'))
+        
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json',
         scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
-        # THE FIX IS HERE: Force HTTPS scheme for the redirect URI
         redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
     )
     authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
@@ -416,7 +435,6 @@ def oauth2callback():
     state = session['state']
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json', scopes=None, state=state,
-        # THE FIX IS HERE: Force HTTPS scheme for the redirect URI
         redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
     )
     flow.fetch_token(authorization_response=request.url)
@@ -429,7 +447,6 @@ def oauth2callback():
 @app.route('/api/save_view', methods=['POST'])
 @login_required
 def save_view():
-    # ... (code remains the same)
     data = request.get_json()
     if not data or not data.get('name') or data.get('filters') is None:
         return jsonify({'success': False, 'message': 'Missing data'}), 400
@@ -440,7 +457,6 @@ def save_view():
     
 @app.route('/api/lead', methods=['POST'])
 def handle_lead():
-    # ... (code remains the same)
     data = request.get_json()
     if not data: return {"error": "Invalid request. Expecting JSON data."}, 400
     email, phone = data.get('email'), data.get('phone')
@@ -457,4 +473,4 @@ def handle_lead():
     new_activity = Activity(description=activity_description, source=data.get('source', 'לא ידוע'), contact_id=contact.id)
     db.session.add(new_activity)
     db.session.commit()
-    return {"success": True, "message": "Lead processed successfully.", "contact_id": contact.id}, 201
+    return jsonify({"success": True, "message": "Lead processed successfully.", "contact_id": contact.id}), 201
