@@ -242,7 +242,7 @@ def edit_contact(contact_id):
         elif existing_value: db.session.delete(existing_value)
             
     db.session.commit()
-    return redirect(url_for('contact_detail', contact_id=contact.id))
+    return redirect(url_for('contact_detail', contact_id=contact_id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
 @login_required
