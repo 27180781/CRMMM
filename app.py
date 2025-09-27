@@ -124,6 +124,9 @@ class Activity(db.Model):
     contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
     activity_type_id = db.Column(db.Integer, db.ForeignKey('activity_type.id'))
     activity_type = db.relationship('ActivityType', backref='activities')
+    gmail_message_id = db.Column(db.String(100), unique=True, nullable=True)
+    # --------------------------
+    contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
 
 class SavedView(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -324,6 +327,81 @@ def send_email(contact_id):
 
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
+def _parse_email_parts(parts):
+    """פונקציית עזר רקורסיבית לפענוח גוף המייל."""
+    body = ""
+    if parts:
+        for part in parts:
+            if part.get('mimeType') == 'text/plain':
+                body += base64.urlsafe_b64decode(part.get('body').get('data', '')).decode('utf-8')
+            elif 'parts' in part:
+                body += _parse_email_parts(part.get('parts'))
+    return body
+
+@app.route('/contact/<int:contact_id>/sync_gmail')
+@login_required
+def sync_gmail(contact_id):
+    """סורק את Gmail, מוצא מיילים מאיש הקשר ומוסיף אותם כפעילויות."""
+    contact = Contact.query.get_or_404(contact_id)
+    if not contact.email:
+        flash('לא ניתן לסנכרן מיילים, לאיש קשר זה אין כתובת מייל.', 'warning')
+        return redirect(url_for('contact_detail', contact_id=contact.id))
+
+    service = get_gmail_service(current_user)
+    if not service:
+        flash('חשבון Gmail אינו מחובר.', 'danger')
+        return redirect(url_for('contact_detail', contact_id=contact.id))
+
+    try:
+        # 1. חפש את כל המיילים מהכתובת של איש הקשר
+        query = f'from:{contact.email}'
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+        
+        if not messages:
+            flash('לא נמצאו מיילים חדשים מאיש קשר זה.', 'info')
+            return redirect(url_for('contact_detail', contact_id=contact.id))
+
+        new_emails_count = 0
+        for msg in messages:
+            msg_id = msg['id']
+            # 2. בדוק אם כבר סנכרנו את המייל הזה
+            existing_activity = Activity.query.filter_by(gmail_message_id=msg_id).first()
+            if existing_activity:
+                continue # דלג למייל הבא
+
+            # 3. אם המייל חדש, הורד את התוכן המלא שלו
+            message_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+            payload = message_data.get('payload', {})
+            headers = payload.get('headers', [])
+            
+            subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'ללא נושא')
+            from_email = next((h['value'] for h in headers if h['name'].lower() == 'from'), '')
+            
+            body = ""
+            if 'parts' in payload:
+                body = _parse_email_parts(payload['parts'])
+            elif payload.get('body', {}).get('data'):
+                body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+
+            # 4. צור רשומת פעילות חדשה
+            activity_description = f"מייל שהתקבל מ-{from_email}\nנושא: {subject}\n\n{body}"
+            activity = Activity(
+                description=activity_description, 
+                contact_id=contact_id, 
+                source="Gmail Sync",
+                gmail_message_id=msg_id # שמירת המזהה למניעת כפילויות
+            )
+            db.session.add(activity)
+            new_emails_count += 1
+        
+        db.session.commit()
+        flash(f'סונכרנו {new_emails_count} מיילים חדשים בהצלחה!', 'success')
+
+    except Exception as e:
+        flash(f'שגיאה בסנכרון המיילים: {e}', 'danger')
+
+    return redirect(url_for('contact_detail', contact_id=contact.id))
 @app.route('/settings')
 @login_required
 @admin_required

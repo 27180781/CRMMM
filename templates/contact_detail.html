@@ -75,6 +75,9 @@
         </form>
     </div>
     <div class="card">
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('sync_gmail', contact_id=contact.id) }}" class="btn btn-secondary">סנכרן מיילים נכנסים מ-Gmail</a>
+</div>
         <h2>היסטוריית פעילויות</h2>
         {% for activity in activities %}
             <div class="activity-history-item">
