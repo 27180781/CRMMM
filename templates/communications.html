@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h1>מרכז התקשורת</h1>
+    <p>כל הפעילויות וההתכתבויות עם אנשי הקשר, מהעדכנית ביותר.</p>
+
+    <div class="activity-feed">
+        {% for activity, contact in all_activities %}
+            <div class="activity-item">
+                <div class="activity-header">
+                    <a href="{{ url_for('contact_detail', contact_id=contact.id) }}" class="contact-name">{{ contact.name }}</a>
+                    <span class="activity-meta">
+                        {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
+                        {% if activity.source %} | מקור: {{ activity.source }} {% endif %}
+                    </span>
+                </div>
+                <div class="activity-body">
+                    {{ activity.description | nl2br }}
+                </div>
+            </div>
+        {% else %}
+            <p>לא נמצאו פעילויות.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .activity-feed { display: flex; flex-direction: column; gap: 20px; }
+    .activity-item { border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 15px; }
+    .activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .contact-name { font-weight: bold; color: var(--primary-color); text-decoration: none; }
+    .contact-name:hover { text-decoration: underline; }
+    .activity-meta { font-size: 0.9em; color: var(--text-light-color); }
+    .activity-body { line-height: 1.6; }
+</style>
+{% endblock %}

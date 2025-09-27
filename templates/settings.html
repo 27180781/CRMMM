@@ -117,6 +117,9 @@
         {% for field in custom_fields %}
         <li>
             <span class="item-name">{{ field.name }}</span>
+            {# --- שורה חדשה להצגת המזהה --- #}
+            <small style="color: #6c757d; display: block;">API ID: <code>{{ field.api_identifier }}</code></small>
+        </div>
             <form class="edit-form" action="{{ url_for('edit_custom_field', field_id=field.id) }}" method="post">
                 <input type="text" name="name" value="{{ field.name }}" required>
                 <button type="submit" class="btn btn-success">שמור</button>

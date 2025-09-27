@@ -96,6 +96,7 @@
             {% if current_user.is_authenticated %}
                 <a href="{{ url_for('index') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">דף הבית</a>
                 <a href="{{ url_for('add_contact') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">הוספת איש קשר</a>
+<a href="{{ url_for('communications') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">מרכז התקשורת</a>
                 <a href="{{ url_for('settings') }}" style="color: var(--text-color); text-decoration: none;">הגדרות</a>
             {% endif %}
         </div>
