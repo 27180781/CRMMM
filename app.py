@@ -16,10 +16,9 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
-import re
 
 # THIS IS A WORKAROUND FOR DEVELOPMENT/PROXY ISSUES.
-if os.environ.get('OAUTHLIB_INSECURE_TRANSPORT'):
+if 'OAUTHLIB_INSECURE_TRANSPORT' in os.environ:
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # 1. הגדרת טפסים
@@ -28,6 +27,7 @@ class RegistrationForm(FlaskForm):
     password = PasswordField('סיסמה', validators=[DataRequired()])
     confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password', message='הסיסמאות חייבות להיות זהות')])
     submit = SubmitField('הרשמה')
+
     def validate_email(self, email):
         if User.query.filter_by(email=email.data).first():
             raise ValidationError('כתובת אימייל זו כבר תפוסה.')
@@ -41,7 +41,6 @@ class EmailForm(FlaskForm):
     subject = StringField('נושא', validators=[DataRequired()])
     body = TextAreaField('תוכן ההודעה', validators=[DataRequired()])
     submit = SubmitField('שלח מייל')
-
 
 # 2. הגדרת האפליקציה
 app = Flask(__name__)
@@ -63,9 +62,11 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
+# --- THE FIX FOR 'nl2br' IS HERE ---
 @app.template_filter('nl2br')
 def nl2br(s):
     return s.replace('\n', '<br>')
+# ------------------------------------
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -79,7 +80,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# 3. הגדרת מודלים
+# 3. הגדרת מודלים (Models)
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -87,6 +88,7 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     gmail_credentials_json = db.Column(db.Text, nullable=True)
 
+# ... (All other models remain the same) ...
 class ContactType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -142,7 +144,7 @@ class CustomFieldValue(db.Model):
     field = db.relationship('CustomField')
 
 # 4. Routes
-# ... (Authentication, main CRM, and settings routes remain the same)
+# ... (All routes from before, with the fix in `add_activity`) ...
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -254,7 +256,7 @@ def edit_contact(contact_id):
         elif existing_value: db.session.delete(existing_value)
             
     db.session.commit()
-    return redirect(url_for('contact_detail', contact_id=contact.id))
+    return redirect(url_for('contact_detail', contact_id=contact_id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
 @login_required
@@ -302,7 +304,6 @@ def send_email(contact_id):
 
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-# --- Settings and User Management Routes ---
 @app.route('/settings')
 @login_required
 @admin_required
