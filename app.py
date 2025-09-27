@@ -1,10 +1,10 @@
 import os
 import datetime
 import json
+import base64
+from email.mime.text import MIMEText
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
-import os
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 from googleapiclient.discovery import build
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
 from flask_sqlalchemy import SQLAlchemy
@@ -13,9 +13,14 @@ from sqlalchemy import MetaData
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
+import re
+
+# THIS IS A WORKAROUND FOR DEVELOPMENT/PROXY ISSUES.
+if os.environ.get('OAUTHLIB_INSECURE_TRANSPORT'):
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # 1. הגדרת טפסים
 class RegistrationForm(FlaskForm):
@@ -23,7 +28,6 @@ class RegistrationForm(FlaskForm):
     password = PasswordField('סיסמה', validators=[DataRequired()])
     confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password', message='הסיסמאות חייבות להיות זהות')])
     submit = SubmitField('הרשמה')
-
     def validate_email(self, email):
         if User.query.filter_by(email=email.data).first():
             raise ValidationError('כתובת אימייל זו כבר תפוסה.')
@@ -32,6 +36,12 @@ class LoginForm(FlaskForm):
     email = StringField('אימייל', validators=[DataRequired(), Email()])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     submit = SubmitField('כניסה')
+
+class EmailForm(FlaskForm):
+    subject = StringField('נושא', validators=[DataRequired()])
+    body = TextAreaField('תוכן ההודעה', validators=[DataRequired()])
+    submit = SubmitField('שלח מייל')
+
 
 # 2. הגדרת האפליקציה
 app = Flask(__name__)
@@ -52,6 +62,10 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
+
+@app.template_filter('nl2br')
+def nl2br(s):
+    return s.replace('\n', '<br>')
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -209,15 +223,17 @@ def add_contact():
 @login_required
 def contact_detail(contact_id):
     contact = Contact.query.get_or_404(contact_id)
-    activities = Activity.query.filter_by(contact_id=contact_id).order_by(Activity.timestamp.desc()).all()
+    activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
     contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
+    email_form = EmailForm()
     
     return render_template('contact_detail.html', 
                            contact=contact, activities=activities, contact_types=contact_types,
                            statuses=statuses, activity_types=activity_types,
-                           custom_fields=custom_fields, contact_custom_values=contact_custom_values)
+                           custom_fields=custom_fields, contact_custom_values=contact_custom_values,
+                           email_form=email_form)
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 @login_required
@@ -238,7 +254,7 @@ def edit_contact(contact_id):
         elif existing_value: db.session.delete(existing_value)
             
     db.session.commit()
-    return redirect(url_for('contact_detail', contact_id=contact_id))
+    return redirect(url_for('contact_detail', contact_id=contact.id))
 
 @app.route('/contact/<int:contact_id>/add_activity', methods=['POST'])
 @login_required
@@ -247,6 +263,43 @@ def add_activity(contact_id):
         new_activity = Activity(description=request.form['description'], contact_id=contact_id, activity_type_id=request.form.get('activity_type_id', type=int))
         db.session.add(new_activity)
         db.session.commit()
+    return redirect(url_for('contact_detail', contact_id=contact_id))
+
+@app.route('/contact/<int:contact_id>/send_email', methods=['POST'])
+@login_required
+def send_email(contact_id):
+    contact = Contact.query.get_or_404(contact_id)
+    form = EmailForm()
+
+    if form.validate_on_submit():
+        if not contact.email:
+            flash('לאיש קשר זה אין כתובת אימייל.', 'warning')
+            return redirect(url_for('contact_detail', contact_id=contact_id))
+        
+        service = get_gmail_service(current_user)
+        if not service:
+            flash('חשבון Gmail אינו מחובר או שהחיבור אינו תקין.', 'danger')
+            return redirect(url_for('contact_detail', contact_id=contact_id))
+
+        try:
+            message = MIMEText(form.body.data)
+            message['to'] = contact.email
+            message['from'] = 'me'
+            message['subject'] = form.subject.data
+            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            create_message = {'raw': encoded_message}
+            
+            service.users().messages().send(userId="me", body=create_message).execute()
+            
+            activity_description = f"מייל נשלח ל-{contact.email}\nנושא: {form.subject.data}\n\n{form.body.data}"
+            activity = Activity(description=activity_description, contact_id=contact_id, source="Email Sent")
+            db.session.add(activity)
+            db.session.commit()
+
+            flash(f'המייל ל-{contact.email} נשלח בהצלחה!', 'success')
+        except Exception as e:
+            flash(f'שגיאה בשליחת המייל: {e}', 'danger')
+
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
 # --- Settings and User Management Routes ---
