@@ -70,7 +70,7 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(60), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     gmail_credentials_json = db.Column(db.Text, nullable=True)
-# ... (All other models remain the same)
+
 class ContactType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -247,6 +247,7 @@ def add_activity(contact_id):
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
+# --- Settings and User Management Routes ---
 @app.route('/settings')
 @login_required
 @admin_required
