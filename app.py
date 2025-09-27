@@ -1,10 +1,10 @@
 import os
 import datetime
 import json
-import base64
-from email.mime.text import MIMEText
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
+import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 from googleapiclient.discovery import build
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
 from flask_sqlalchemy import SQLAlchemy
@@ -13,12 +13,9 @@ from sqlalchemy import MetaData
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField
+from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
 from functools import wraps
-
-# THIS IS A WORKAROUND FOR DEVELOPMENT/PROXY ISSUES. IN A REAL PRODUCTION ENV, YOU SHOULD CONFIGURE A PROPER SSL/TLS TERMINATION.
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 # 1. הגדרת טפסים
 class RegistrationForm(FlaskForm):
@@ -26,6 +23,7 @@ class RegistrationForm(FlaskForm):
     password = PasswordField('סיסמה', validators=[DataRequired()])
     confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password', message='הסיסמאות חייבות להיות זהות')])
     submit = SubmitField('הרשמה')
+
     def validate_email(self, email):
         if User.query.filter_by(email=email.data).first():
             raise ValidationError('כתובת אימייל זו כבר תפוסה.')
@@ -34,13 +32,6 @@ class LoginForm(FlaskForm):
     email = StringField('אימייל', validators=[DataRequired(), Email()])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     submit = SubmitField('כניסה')
-
-class EmailForm(FlaskForm):
-    """טופס לשליחת אימייל."""
-    subject = StringField('נושא', validators=[DataRequired()])
-    body = TextAreaField('תוכן ההודעה', validators=[DataRequired()])
-    submit = SubmitField('שלח מייל')
-
 
 # 2. הגדרת האפליקציה
 app = Flask(__name__)
@@ -74,8 +65,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# 3. הגדרת מודלים (נשארים ללא שינוי)
-# ... (כל המודלים שלך)
+# 3. הגדרת מודלים
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -137,24 +127,10 @@ class CustomFieldValue(db.Model):
     contact = db.relationship('Contact', backref=db.backref('custom_values', cascade="all, delete-orphan"))
     field = db.relationship('CustomField')
 
-# 4. פונקציות עזר ל-Gmail
-def get_gmail_service(user):
-    """בונה אובייקט שירות של Gmail מהטוקנים השמורים של המשתמש."""
-    if not user.gmail_credentials_json:
-        return None
-    try:
-        creds_data = json.loads(user.gmail_credentials_json)
-        credentials = google.oauth2.credentials.Credentials(**creds_data)
-        service = build('gmail', 'v1', credentials=credentials)
-        return service
-    except Exception as e:
-        print(f"Error building Gmail service: {e}")
-        return None
-
-# 5. Routes
+# 4. Routes
+# ... (Authentication, main CRM, and settings routes remain the same)
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # ... (code remains the same)
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     form = RegistrationForm()
@@ -170,10 +146,8 @@ def register():
         return redirect(url_for('index'))
     return render_template('register.html', form=form)
 
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # ... (code remains the same)
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     form = LoginForm()
@@ -187,7 +161,6 @@ def login():
             flash('התחברות נכשלה. אנא בדוק אימייל וסיסמה.', 'danger')
     return render_template('login.html', form=form)
 
-# ... (All other routes remain the same, add the new route below)
 @app.route('/logout')
 @login_required
 def logout():
@@ -236,17 +209,15 @@ def add_contact():
 @login_required
 def contact_detail(contact_id):
     contact = Contact.query.get_or_404(contact_id)
-    activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
+    activities = Activity.query.filter_by(contact_id=contact_id).order_by(Activity.timestamp.desc()).all()
     contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
-    email_form = EmailForm()  # יצירת טופס אימייל
     
     return render_template('contact_detail.html', 
                            contact=contact, activities=activities, contact_types=contact_types,
                            statuses=statuses, activity_types=activity_types,
-                           custom_fields=custom_fields, contact_custom_values=contact_custom_values,
-                           email_form=email_form)
+                           custom_fields=custom_fields, contact_custom_values=contact_custom_values)
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 @login_required
@@ -278,47 +249,7 @@ def add_activity(contact_id):
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-@app.route('/contact/<int:contact_id>/send_email', methods=['POST'])
-@login_required
-def send_email(contact_id):
-    contact = Contact.query.get_or_404(contact_id)
-    form = EmailForm()
-
-    if form.validate_on_submit():
-        if not contact.email:
-            flash('לאיש קשר זה אין כתובת אימייל.', 'warning')
-            return redirect(url_for('contact_detail', contact_id=contact_id))
-        
-        service = get_gmail_service(current_user)
-        if not service:
-            flash('חשבון Gmail אינו מחובר או שהחיבור אינו תקין.', 'danger')
-            return redirect(url_for('contact_detail', contact_id=contact_id))
-
-        try:
-            message = MIMEText(form.body.data)
-            message['to'] = contact.email
-            message['from'] = 'me'  # Gmail API knows who 'me' is
-            message['subject'] = form.subject.data
-            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            create_message = {'raw': encoded_message}
-            
-            send_message = (service.users().messages().send(userId="me", body=create_message).execute())
-            
-            # תיעוד הפעילות ב-CRM
-            activity_description = f"מייל נשלח ל-{contact.email}\nנושא: {form.subject.data}\n\n{form.body.data}"
-            activity = Activity(description=activity_description, contact_id=contact_id, source="Email Sent")
-            db.session.add(activity)
-            db.session.commit()
-
-            flash(f'המייל ל-{contact.email} נשלח בהצלחה!', 'success')
-        except Exception as e:
-            flash(f'שגיאה בשליחת המייל: {e}', 'danger')
-
-    return redirect(url_for('contact_detail', contact_id=contact_id))
-
-
-# --- Settings, User Management, Gmail, and API routes remain the same ---
-# ... (All settings, user management, and API routes)
+# --- Settings and User Management Routes ---
 @app.route('/settings')
 @login_required
 @admin_required
@@ -326,8 +257,8 @@ def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    return render_template('settings.html',
-                           contact_types=contact_types,
+    return render_template('settings.html', 
+                           contact_types=contact_types, 
                            activity_types=activity_types,
                            custom_fields=custom_fields)
 
@@ -387,7 +318,7 @@ def delete_setting(item_type, item_id):
         db.session.delete(item)
         db.session.commit()
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
-
+    
 @app.route('/settings/add_custom_field', methods=['POST'])
 @login_required
 @admin_required
@@ -451,6 +382,7 @@ def delete_user(user_id):
         flash(f'המשתמש {user_to_delete.email} נמחק בהצלחה.', 'success')
     return redirect(url_for('manage_users'))
 
+# --- Gmail & API Routes ---
 def create_client_secret_file():
     client_id = os.environ.get('GOOGLE_CLIENT_ID')
     client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
