@@ -144,6 +144,26 @@ class CustomFieldValue(db.Model):
     field = db.relationship('CustomField')
 
 # 4. Routes
+def get_gmail_service(user):
+    """
+    יוצר אובייקט שירות של Gmail באמצעות ההרשאות השמורות של המשתמש.
+    מחזיר None אם למשתמש אין הרשאות שמורות.
+    """
+    if not user.gmail_credentials_json:
+        return None
+    
+    try:
+        # טוען את פרטי ההתחברות מה-JSON שנשמר במסד הנתונים
+        creds_info = json.loads(user.gmail_credentials_json)
+        credentials = google.oauth2.credentials.Credentials.from_authorized_user_info(creds_info)
+
+        # בונה את אובייקט השירות של Gmail
+        service = build('gmail', 'v1', credentials=credentials)
+        return service
+    except Exception as e:
+        print(f"Error creating Gmail service: {e}")
+        return None
+
 # ... (All routes from before, with the fix in `add_activity`) ...
 @app.route('/register', methods=['GET', 'POST'])
 def register():
