@@ -5,7 +5,8 @@ import base64
 import re
 from email.mime.text import MIMEText
 from email.utils import parseaddr, parsedate_to_datetime
-import pytz # <-- יבוא חדש
+import pytz
+import bleach # <-- יבוא חדש
 
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
@@ -79,15 +80,18 @@ login_manager.login_view = 'login'
 login_manager.login_message = "אנא התחבר כדי לגשת לעמוד זה."
 login_manager.login_message_category = 'info'
 
-# --- פילטר חדש להמרת זמנים לאזור הזמן של המשתמש ---
 @app.template_filter('to_local_time')
 def to_local_time(utc_dt):
     if not utc_dt:
         return ""
-    local_tz = pytz.timezone(current_user.timezone or 'UTC')
-    # Assuming utc_dt is naive, make it aware of UTC
+    try:
+        local_tz = pytz.timezone(current_user.timezone or 'UTC')
+    except pytz.UnknownTimeZoneError:
+        local_tz = pytz.timezone('UTC')
+
     if utc_dt.tzinfo is None:
         utc_dt = pytz.utc.localize(utc_dt)
+        
     local_dt = utc_dt.astimezone(local_tz)
     return local_dt.strftime('%d-%m-%Y %H:%M')
 
@@ -118,7 +122,6 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(60), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     gmail_credentials_json = db.Column(db.Text, nullable=True)
-    # --- שדה חדש ---
     timezone = db.Column(db.String(100), nullable=False, default='Asia/Jerusalem')
 
 class ContactType(db.Model):
@@ -150,13 +153,18 @@ class Contact(db.Model):
 
 class Activity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    description = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=False)  # ישמש עכשיו לתקציר בלבד
     source = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     contact_id = db.Column(db.Integer, db.ForeignKey('contact.id'), nullable=False)
     activity_type_id = db.Column(db.Integer, db.ForeignKey('activity_type.id'))
     activity_type = db.relationship('ActivityType', backref='activities')
     gmail_message_id = db.Column(db.String(100), unique=True, nullable=True)
+
+    # --- שדות חדשים למיילים ---
+    email_subject = db.Column(db.String(255), nullable=True)
+    email_body_html = db.Column(db.Text, nullable=True)
+    email_quoted_text = db.Column(db.Text, nullable=True)
 
 class SavedView(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -194,14 +202,66 @@ def get_gmail_service(user):
         return None
 
 def _parse_email_parts(parts):
+    """Extrai o corpo de texto simples das partes de um e-mail."""
     body = ""
-    if parts:
-        for part in parts:
-            if part.get('mimeType') == 'text/plain':
-                body += base64.urlsafe_b64decode(part.get('body').get('data', '')).decode('utf-8', 'ignore')
-            elif 'parts' in part:
-                body += _parse_email_parts(part.get('parts'))
-    return body
+    html_body = ""
+    
+    # First, try to get the HTML part for better cleaning later
+    for part in parts:
+        if part.get('mimeType') == 'text/html':
+            html_body = base64.urlsafe_b64decode(part.get('body').get('data', '')).decode('utf-8', 'ignore')
+            break # Prefer HTML if available
+        elif 'parts' in part:
+            # Recursive search in nested parts
+            found_html, _ = _parse_email_parts(part.get('parts'))
+            if found_html:
+                html_body = found_html
+                break
+
+    if html_body:
+        return html_body, "" # Return HTML and empty plain text
+
+    # If no HTML, fall back to plain text
+    for part in parts:
+        if part.get('mimeType') == 'text/plain':
+            body += base64.urlsafe_b64decode(part.get('body').get('data', '')).decode('utf-8', 'ignore')
+        elif 'parts' in part:
+            _, found_plain = _parse_email_parts(part.get('parts'))
+            body += found_plain
+            
+    return "", body # Return empty HTML and plain text
+
+def _parse_and_clean_email_body(body_text):
+    """
+    Cleans the email body, separates the main message from quoted history,
+    and allows basic HTML tags.
+    """
+    quoted_text = ""
+    main_body = body_text
+
+    patterns = [
+        r'<div class="gmail_quote".*?>.*?</div>', # Gmail blockquote
+        r'\n\s*‫בתאריך יום.+כתב/ה:‬',
+        r'\n\s*On\s.+wrote:',
+        r'\n_{3,}', 
+        r'\nFrom:\s',
+        r'From: &lt;mailto:.*&gt;'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, main_body, re.IGNORECASE | re.DOTALL)
+        if match:
+            quoted_text = main_body[match.start():]
+            main_body = main_body[:match.start()]
+            break
+            
+    allowed_tags = ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'ol', 'ul', 'li', 'a', 'div', 'span']
+    allowed_attrs = {'a': ['href', 'title']}
+    
+    cleaned_body_html = bleach.linkify(bleach.clean(main_body, tags=allowed_tags, attributes=allowed_attrs, strip=True))
+    cleaned_quoted_html = bleach.linkify(bleach.clean(quoted_text, tags=allowed_tags, attributes=allowed_attrs, strip=True))
+
+    return cleaned_body_html, cleaned_quoted_html
 
 # ===================================================================
 # 5. נתיבים (Routes)
@@ -368,17 +428,27 @@ def send_email(contact_id):
                 flash('חשבון Gmail אינו מחובר או שהחיבור אינו תקין.', 'danger')
             else:
                 try:
-                    message = MIMEText(form.body.data)
+                    message = MIMEText(form.body.data, 'html') # Send as HTML
                     message['to'] = contact.email
                     message['from'] = 'me'
                     message['subject'] = form.subject.data
                     encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
                     create_message = {'raw': encoded_message}
                     
-                    service.users().messages().send(userId="me", body=create_message).execute()
+                    sent_message = service.users().messages().send(userId="me", body=create_message).execute()
                     
-                    activity_description = f"מייל נשלח ל-{contact.email}\nנושא: {form.subject.data}\n\n{form.body.data}"
-                    activity = Activity(description=activity_description, contact_id=contact_id, source="Email Sent")
+                    description = f"מייל יוצא אל {contact.name}"
+                    main_body, quoted = _parse_and_clean_email_body(form.body.data)
+
+                    activity = Activity(
+                        description=description, 
+                        contact_id=contact_id, 
+                        source="Email (Sent)",
+                        gmail_message_id=sent_message.get('id'),
+                        email_subject=form.subject.data,
+                        email_body_html=main_body,
+                        email_quoted_text=quoted
+                    )
                     db.session.add(activity)
                     db.session.commit()
 
@@ -388,7 +458,6 @@ def send_email(contact_id):
 
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-# --- סנכרון יוצא ונכנס ---
 @app.route('/contact/<int:contact_id>/sync_gmail')
 @login_required
 def sync_gmail(contact_id):
@@ -403,13 +472,12 @@ def sync_gmail(contact_id):
         return redirect(url_for('contact_detail', contact_id=contact.id))
 
     try:
-        # שאילתה חדשה שמחפשת גם מיילים נכנסים וגם יוצאים
         query = f'from:{contact.email} OR to:{contact.email}'
         results = service.users().messages().list(userId='me', q=query).execute()
         messages = results.get('messages', [])
         
         if not messages:
-            flash('לא נמצאו מיילים מאיש קשר זה.', 'info')
+            flash('לא נמצאו מיילים חדשים מאיש קשר זה.', 'info')
             return redirect(url_for('contact_detail', contact_id=contact.id))
 
         new_emails_count = 0
@@ -428,28 +496,37 @@ def sync_gmail(contact_id):
             subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'ללא נושא')
             from_header = next((h['value'] for h in headers if h['name'].lower() == 'from'), '')
             
-            # קבע את כיוון המייל והתיאור
             _, from_email = parseaddr(from_header)
-            if contact.email.lower() in from_email.lower():
-                direction = "מייל נכנס"
-                desc_prefix = f"מייל שהתקבל מ-{contact.name}"
-            else:
-                direction = "מייל יוצא"
-                desc_prefix = f"מייל שנשלח אל {contact.name}"
-
-            body = ""
+            
+            body_html = ""
+            body_plain = ""
             if 'parts' in payload:
-                body = _parse_email_parts(payload['parts'])
+                body_html, body_plain = _parse_email_parts(payload['parts'])
             elif payload.get('body', {}).get('data'):
-                body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
+                if payload.get('mimeType') == 'text/html':
+                    body_html = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
+                else:
+                    body_plain = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
+            
+            body_raw = body_html or body_plain
+            main_body, quoted_text = _parse_and_clean_email_body(body_raw)
 
-            activity_description = f"{desc_prefix}\nנושא: {subject}\n\n{body}"
+            if contact.email.lower() in from_email.lower():
+                source = "Gmail (נכנס)"
+                description = f"מייל נכנס מ-{contact.name}"
+            else:
+                source = "Gmail (יוצא)"
+                description = f"מייל יוצא אל {contact.name}"
+
             activity = Activity(
-                description=activity_description, 
+                description=description, 
                 contact_id=contact_id, 
-                source=direction, 
+                source=source, 
                 gmail_message_id=msg_id,
-                timestamp=email_timestamp
+                timestamp=email_timestamp,
+                email_subject=subject,
+                email_body_html=main_body,
+                email_quoted_text=quoted_text
             )
             db.session.add(activity)
             new_emails_count += 1
@@ -465,7 +542,6 @@ def sync_gmail(contact_id):
 
     return redirect(url_for('contact_detail', contact_id=contact.id))
 
-# --- נתיב חדש - הגדרות משתמש כלליות (כמו אזור זמן) ---
 @app.route('/settings/profile', methods=['GET', 'POST'])
 @login_required
 def profile_settings():
@@ -538,7 +614,7 @@ def delete_setting(item_type, item_id):
     model = model_map.get(item_type)
     if model:
         item = model.query.get_or_404(item_id)
-        if item_type in ['contact_type', 'status'] and item.contacts:
+        if item_type in ['contact_type', 'status'] and hasattr(item, 'contacts') and item.contacts:
             flash(f"לא ניתן למחוק את '{item.name}' מכיוון שיש ישויות המשויכות אליו.", "danger")
             return redirect(url_for('settings'))
         db.session.delete(item)
@@ -622,7 +698,7 @@ def create_client_secret_file():
     client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
     if client_id and client_secret:
         client_config = { "web": {
-            "client_id": client_id, "project_id": "y-crm-integration",
+            "client_id": client_id, "project_id": os.environ.get('GOOGLE_PROJECT_ID'),
             "auth_uri": "https://accounts.google.com/o/oauth2/auth", "token_uri": "https://oauth2.googleapis.com/token",
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
             "client_secret": client_secret
@@ -640,13 +716,14 @@ def before_request_func():
 @login_required
 def authorize_gmail():
     if not os.path.exists('client_secret.json'):
-        flash('שירות אינטגרציית Gmail אינו מוגדר.', 'warning')
-        return redirect(url_for('settings'))
+        if not create_client_secret_file():
+            flash('שירות אינטגרציית Gmail אינו מוגדר כראוי במשתני הסביבה.', 'warning')
+            return redirect(url_for('settings'))
         
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json',
-        scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.modify'],
-        redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
+        scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+        redirect_uri=url_for('oauth2callback', _external=True)
     )
     authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
     session['state'] = state
@@ -658,7 +735,7 @@ def oauth2callback():
     state = session['state']
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json', scopes=None, state=state,
-        redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
+        redirect_uri=url_for('oauth2callback', _external=True)
     )
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
@@ -685,13 +762,13 @@ def handle_lead():
     email, phone = data.get('email'), data.get('phone')
     if not email and not phone: return jsonify({"error": "Either email or phone is required."}), 400
     contact = None
-    if email: contact = Contact.query.filter_by(email=email).first()
+    if email: contact = Contact.query.filter(db.func.lower(Contact.email) == email.lower()).first()
     if not contact and phone: contact = Contact.query.filter_by(phone=phone).first()
     if not contact:
         name = data.get('name') or email or phone
         contact = Contact(name=name, email=email, phone=phone)
         db.session.add(contact)
-        db.session.flush() # Ensure contact has an ID before creating activity
+        db.session.flush() 
     activity_description = f"פנייה חדשה ממקור: {data.get('source', 'לא ידוע')}\n{data.get('message', '')}"
     new_activity = Activity(description=activity_description, source=data.get('source', 'לא ידוע'), contact_id=contact.id)
     db.session.add(new_activity)
@@ -699,7 +776,7 @@ def handle_lead():
     return jsonify({"success": True, "message": "Lead processed successfully.", "contact_id": contact.id}), 201
 
 # ===================================================================
-# 6. לוגיקה לסנכרון ברקע (הליבה של המערכת האוטומטית)
+# 6. לוגיקה לסנכרון ברקע
 # ===================================================================
 
 def run_full_gmail_sync():
@@ -716,7 +793,6 @@ def run_full_gmail_sync():
             user_email_lower = user.email.lower()
 
             try:
-                # שאילתה שמחפשת מיילים מהיום האחרון, גם נכנסים וגם יוצאים
                 query = 'newer_than:1d'
                 results = service.users().messages().list(userId='me', q=query).execute()
                 messages = results.get('messages', [])
@@ -745,30 +821,28 @@ def run_full_gmail_sync():
                     
                     sender_name, sender_email = parseaddr(from_header)
                     
-                    # Handle multiple recipients in 'To' header
                     all_recipients = re.split(r'[;,]\s*', to_header)
                     
-                    # זהה מי הלקוח ומה כיוון ההודעה
-                    if sender_email.lower() == user_email_lower:
-                        # זהו מייל יוצא. קח את הנמען הראשון שאינו המשתמש עצמו.
-                        contact_email = None
+                    contact_email = None
+                    contact_name = None
+                    direction = None
+                    
+                    if sender_email and sender_email.lower() == user_email_lower:
                         for recip_str in all_recipients:
                             recip_name, recip_email = parseaddr(recip_str)
                             if recip_email and recip_email.lower() != user_email_lower:
                                 contact_email = recip_email
                                 contact_name = recip_name
+                                direction = "מייל יוצא"
                                 break
-                        
-                        if not contact_email: continue # Skip if no external recipient is found
-                        direction = "מייל יוצא"
                     else:
-                        # זהו מייל נכנס
                         contact_email = sender_email
                         contact_name = sender_name
                         direction = "מייל נכנס"
-                        if not contact_email: continue
 
-                    # חפש או צור איש קשר חדש
+                    if not contact_email:
+                        continue
+                    
                     contact = Contact.query.filter(db.func.lower(Contact.email) == contact_email.lower()).first()
                     if not contact:
                         contact = Contact(name=contact_name or contact_email, email=contact_email)
@@ -777,17 +851,36 @@ def run_full_gmail_sync():
                         print(f"נוצר איש קשר חדש: {contact.name} ({contact.email})")
 
                     subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'ללא נושא')
-                    body = ""
-                    if 'parts' in payload: body = _parse_email_parts(payload['parts'])
-                    elif payload.get('body', {}).get('data'): body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
+                    
+                    body_html = ""
+                    body_plain = ""
+                    if 'parts' in payload:
+                        body_html, body_plain = _parse_email_parts(payload['parts'])
+                    elif payload.get('body', {}).get('data'):
+                        if payload.get('mimeType') == 'text/html':
+                             body_html = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
+                        else:
+                             body_plain = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', 'ignore')
 
-                    activity_description = f"{direction} | נושא: {subject}\n\n{body}"
+                    body_raw = body_html or body_plain
+                    main_body, quoted_text = _parse_and_clean_email_body(body_raw)
+
+                    if direction == "מייל נכנס":
+                        source = "Gmail Sync (נכנס)"
+                        description = f"מייל נכנס מ-{contact_name}"
+                    else: # מייל יוצא
+                        source = "Gmail Sync (יוצא)"
+                        description = f"מייל יוצא אל {contact_name}"
+                    
                     activity = Activity(
-                        description=activity_description, 
+                        description=description, 
                         contact_id=contact.id, 
-                        source="Gmail Sync (Auto)",
+                        source=source,
                         gmail_message_id=msg_id,
-                        timestamp=email_timestamp
+                        timestamp=email_timestamp,
+                        email_subject=subject,
+                        email_body_html=main_body,
+                        email_quoted_text=quoted_text
                     )
                     db.session.add(activity)
                     print(f"נוספה פעילות ({direction}) לאיש הקשר {contact.name}")
