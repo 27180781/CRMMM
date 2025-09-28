@@ -723,7 +723,7 @@ def authorize_gmail():
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json',
         scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
-        redirect_uri=url_for('oauth2callback', _external=True)
+        redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
     )
     authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
     session['state'] = state
@@ -735,7 +735,7 @@ def oauth2callback():
     state = session['state']
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
         'client_secret.json', scopes=None, state=state,
-        redirect_uri=url_for('oauth2callback', _external=True)
+        redirect_uri=url_for('oauth2callback', _external=True, _scheme='https')
     )
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
