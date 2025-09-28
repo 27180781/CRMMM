@@ -82,7 +82,7 @@
         {% for activity in activities %}
             <div class="activity-history-item">
                 <p>
-                    <strong>תאריך:</strong> {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
+                    <strong>תאריך:</strong> {{ activity.timestamp | to_local_time }}
                     {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
                 </p>
                 <p>{{ activity.description | nl2br }}</p>

@@ -17,6 +17,14 @@
 <h1>הגדרות מערכת</h1>
 
 <div class="card settings-section">
+
+<div class="card settings-section">
+    <h2>הגדרות פרופיל</h2>
+    <p>כאן תוכל לעדכן את הגדרות המשתמש שלך, כמו אזור זמן.</p>
+    <a href="{{ url_for('profile_settings') }}" class="btn btn-primary">עבור להגדרות פרופיל</a>
+</div>
+
+<div class="card settings-section">
     <h2>ניהול סוגי רישום</h2>
     <form action="{{ url_for('add_contact_type') }}" method="post" class="add-form">
         <input type="text" name="name" placeholder="הוסף סוג חדש (למשל: ליד, לקוח)" required>

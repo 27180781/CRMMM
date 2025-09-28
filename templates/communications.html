@@ -11,7 +11,7 @@
                 <div class="activity-header">
                     <a href="{{ url_for('contact_detail', contact_id=contact.id) }}" class="contact-name">{{ contact.name }}</a>
                     <span class="activity-meta">
-                        {{ activity.timestamp.strftime('%d-%m-%Y %H:%M') }}
+                        {{ activity.timestamp | to_local_time }}
                         {% if activity.source %} | מקור: {{ activity.source }} {% endif %}
                     </span>
                 </div>

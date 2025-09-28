@@ -8,5 +8,6 @@ Flask-WTF
 email-validator
 google-api-python-client
 google-auth-httplib2
+pytz
 google-auth-oauthlib
 Flask-Migrate

@@ -20,6 +20,8 @@
             --border-radius: 8px;
             --success-color: #28a745;
             --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --warning-color: #ffc107;
         }
 
         body {
@@ -86,6 +88,35 @@
             padding: 25px;
             margin-bottom: 25px;
         }
+
+        /* --- Alert Styles for Flashed Messages --- */
+        .alert {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: var(--border-radius);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .alert-success { background-color: var(--success-color); color: white; }
+        .alert-danger { background-color: var(--danger-color); color: white; }
+        .alert-info { background-color: var(--info-color); color: white; }
+        .alert-warning { background-color: var(--warning-color); color: var(--text-color); }
+
+        .alert-close-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 0 0.5rem;
+        }
+        .alert-close-btn:hover {
+            opacity: 1;
+        }
+
     </style>
     {% block head %}{% endblock %}
 </head>
@@ -96,7 +127,7 @@
             {% if current_user.is_authenticated %}
                 <a href="{{ url_for('index') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">דף הבית</a>
                 <a href="{{ url_for('add_contact') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">הוספת איש קשר</a>
-<a href="{{ url_for('communications') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">מרכז התקשורת</a>
+                <a href="{{ url_for('communications') }}" style="color: var(--text-color); text-decoration: none; margin-left: 15px;">מרכז התקשורת</a>
                 <a href="{{ url_for('settings') }}" style="color: var(--text-color); text-decoration: none;">הגדרות</a>
             {% endif %}
         </div>
@@ -109,6 +140,19 @@
     </nav>
 
     <main class="main-container">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flashed-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <span>{{ message }}</span>
+                        <button type="button" class="alert-close-btn" onclick="this.parentElement.style.display='none';">&times;</button>
+                    </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
         {% block content %}{% endblock %}
     </main>
 </body>

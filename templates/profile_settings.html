@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h1>הגדרות פרופיל</h1>
+    <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            <label for="timezone">אזור זמן</label>
+            {{ form.timezone(class="form-control") }}
+            <small>בחירת אזור הזמן תשפיע על תצוגת התאריכים והשעות בכל המערכת.</small>
+        </div>
+        {{ form.submit(class="btn btn-primary") }}
+    </form>
+</div>
+{% endblock %}

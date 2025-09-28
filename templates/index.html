@@ -90,8 +90,10 @@
               <td><a href="{{ url_for('contact_detail', contact_id=contact.id) }}">{{ contact.name }}</a></td>
               <td>{{ contact.contact_type.name if contact.contact_type else '' }}</td>
               <td>{{ contact.status.name if contact.status else '' }}</td>
-              <td>{{ contact.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
-              <td>{{ contact.updated_at.strftime('%d-%m-%Y %H:%M') }}</td>
+              <td>{{ contact.created_at | to_local_time }}</td>
+              <td>{{ contact.updated_at | to_local_time }}
+
+</td>
             </tr>
             {% else %}
             <tr class="empty-row">
