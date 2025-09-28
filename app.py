@@ -29,7 +29,6 @@ if 'OAUTHLIB_INSECURE_TRANSPORT' not in os.environ:
 # ===================================================================
 
 class RegistrationForm(FlaskForm):
-    """טופס הרשמה למשתמש חדש."""
     email = StringField('אימייל', validators=[DataRequired(), Email(message='אנא הזן כתובת אימייל תקינה.')])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     confirm_password = PasswordField('אימות סיסמה', validators=[DataRequired(), EqualTo('password', message='הסיסמאות חייבות להיות זהות')])
@@ -40,13 +39,11 @@ class RegistrationForm(FlaskForm):
             raise ValidationError('כתובת אימייל זו כבר תפוסה.')
 
 class LoginForm(FlaskForm):
-    """טופס התחברות למערכת."""
     email = StringField('אימייל', validators=[DataRequired(), Email()])
     password = PasswordField('סיסמה', validators=[DataRequired()])
     submit = SubmitField('כניסה')
 
 class EmailForm(FlaskForm):
-    """טופס שליחת אימייל."""
     subject = StringField('נושא', validators=[DataRequired()])
     body = TextAreaField('תוכן ההודעה', validators=[DataRequired()])
     submit = SubmitField('שלח מייל')
@@ -85,11 +82,10 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def admin_required(f):
-    """Decorator לבדיקה אם המשתמש הוא מנהל."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
-            abort(403)  # Forbidden
+            abort(403)
         return f(*args, **kwargs)
     return decorated_function
 
@@ -165,10 +161,6 @@ class CustomFieldValue(db.Model):
 # ===================================================================
 
 def get_gmail_service(user):
-    """
-    יוצר אובייקט שירות של Gmail באמצעות ההרשאות השמורות של המשתמש.
-    מחזיר None אם למשתמש אין הרשאות שמורות או שהן לא תקינות.
-    """
     if not user.gmail_credentials_json:
         return None
     try:
@@ -181,7 +173,6 @@ def get_gmail_service(user):
         return None
 
 def _parse_email_parts(parts):
-    """פונקציית עזר רקורסיבית לפענוח גוף המייל מתוך מבנה ה-MIME."""
     body = ""
     if parts:
         for part in parts:
@@ -195,7 +186,6 @@ def _parse_email_parts(parts):
 # 5. נתיבים (Routes)
 # ===================================================================
 
-# --- נתיבי אימות משתמש ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -234,7 +224,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- נתיבי CRM ראשיים ---
 @app.route('/')
 @login_required
 def index():
@@ -245,9 +234,13 @@ def index():
         view = SavedView.query.get(view_id)
         if view:
             filters = view.filters
-            contact_type_filter, status_filter, sort_by = filters.get('contact_type_id'), filters.get('status_id', []), filters.get('sort_by', 'created_at_desc')
+            contact_type_filter = filters.get('contact_type_id')
+            status_filter = filters.get('status_id', [])
+            sort_by = filters.get('sort_by', 'created_at_desc')
     else:
-        contact_type_filter, status_filter, sort_by = request.args.get('contact_type_id', type=int), request.args.getlist('status_id', type=int), request.args.get('sort_by', 'created_at_desc')
+        contact_type_filter = request.args.get('contact_type_id', type=int)
+        status_filter = request.args.getlist('status_id', type=int)
+        sort_by = request.args.get('sort_by', 'created_at_desc')
 
     if contact_type_filter: query = query.filter(Contact.contact_type_id == contact_type_filter)
     if status_filter: query = query.filter(Contact.status_id.in_(status_filter))
@@ -260,7 +253,15 @@ def index():
     all_statuses = Status.query.all()
     saved_views = SavedView.query.order_by(SavedView.name).all()
     
-    return render_template('index.html', **locals())
+    # --- התיקון כאן: שליחת משתנים באופן מפורש במקום **locals() ---
+    return render_template('index.html',
+                           contacts=contacts,
+                           contact_types=contact_types,
+                           all_statuses=all_statuses,
+                           saved_views=saved_views,
+                           active_type_filter=contact_type_filter,
+                           active_status_filter=status_filter,
+                           active_sort=sort_by)
 
 @app.route('/communications')
 @login_required
@@ -284,12 +285,23 @@ def add_contact():
 def contact_detail(contact_id):
     contact = Contact.query.get_or_404(contact_id)
     activities = Activity.query.filter_by(contact_id=contact.id).order_by(Activity.timestamp.desc()).all()
-    contact_types, statuses, activity_types = ContactType.query.all(), Status.query.all(), ActivityType.query.all()
+    contact_types = ContactType.query.all()
+    statuses = Status.query.all()
+    activity_types = ActivityType.query.all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
     contact_custom_values = {val.field_id: val.value for val in contact.custom_values}
     email_form = EmailForm()
     
-    return render_template('contact_detail.html', **locals())
+    # --- שיפור: שליחת משתנים באופן מפורש במקום **locals() ---
+    return render_template('contact_detail.html',
+                           contact=contact,
+                           activities=activities,
+                           contact_types=contact_types,
+                           statuses=statuses,
+                           activity_types=activity_types,
+                           custom_fields=custom_fields,
+                           contact_custom_values=contact_custom_values,
+                           email_form=email_form)
 
 @app.route('/contact/<int:contact_id>/edit', methods=['POST'])
 @login_required
@@ -322,7 +334,6 @@ def add_activity(contact_id):
         db.session.commit()
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
-# --- נתיבי אינטגרציית Gmail ---
 @app.route('/contact/<int:contact_id>/send_email', methods=['POST'])
 @login_required
 def send_email(contact_id):
@@ -332,31 +343,29 @@ def send_email(contact_id):
     if form.validate_on_submit():
         if not contact.email:
             flash('לאיש קשר זה אין כתובת אימייל.', 'warning')
-            return redirect(url_for('contact_detail', contact_id=contact_id))
-        
-        service = get_gmail_service(current_user)
-        if not service:
-            flash('חשבון Gmail אינו מחובר או שהחיבור אינו תקין.', 'danger')
-            return redirect(url_for('contact_detail', contact_id=contact_id))
+        else:
+            service = get_gmail_service(current_user)
+            if not service:
+                flash('חשבון Gmail אינו מחובר או שהחיבור אינו תקין.', 'danger')
+            else:
+                try:
+                    message = MIMEText(form.body.data)
+                    message['to'] = contact.email
+                    message['from'] = 'me'
+                    message['subject'] = form.subject.data
+                    encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+                    create_message = {'raw': encoded_message}
+                    
+                    service.users().messages().send(userId="me", body=create_message).execute()
+                    
+                    activity_description = f"מייל נשלח ל-{contact.email}\nנושא: {form.subject.data}\n\n{form.body.data}"
+                    activity = Activity(description=activity_description, contact_id=contact_id, source="Email Sent")
+                    db.session.add(activity)
+                    db.session.commit()
 
-        try:
-            message = MIMEText(form.body.data)
-            message['to'] = contact.email
-            message['from'] = 'me'
-            message['subject'] = form.subject.data
-            encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-            create_message = {'raw': encoded_message}
-            
-            service.users().messages().send(userId="me", body=create_message).execute()
-            
-            activity_description = f"מייל נשלח ל-{contact.email}\nנושא: {form.subject.data}\n\n{form.body.data}"
-            activity = Activity(description=activity_description, contact_id=contact_id, source="Email Sent")
-            db.session.add(activity)
-            db.session.commit()
-
-            flash(f'המייל ל-{contact.email} נשלח בהצלחה!', 'success')
-        except Exception as e:
-            flash(f'שגיאה בשליחת המייל: {e}', 'danger')
+                    flash(f'המייל ל-{contact.email} נשלח בהצלחה!', 'success')
+                except Exception as e:
+                    flash(f'שגיאה בשליחת המייל: {e}', 'danger')
 
     return redirect(url_for('contact_detail', contact_id=contact_id))
 
@@ -417,7 +426,6 @@ def sync_gmail(contact_id):
 
     return redirect(url_for('contact_detail', contact_id=contact.id))
 
-# --- נתיבי הגדרות (דורשים הרשאת מנהל) ---
 @app.route('/settings')
 @login_required
 @admin_required
@@ -425,7 +433,11 @@ def settings():
     contact_types = ContactType.query.order_by(ContactType.name).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     custom_fields = CustomField.query.order_by(CustomField.name).all()
-    return render_template('settings.html', **locals())
+    # --- שיפור: שליחת משתנים באופן מפורש במקום **locals() ---
+    return render_template('settings.html',
+                           contact_types=contact_types,
+                           activity_types=activity_types,
+                           custom_fields=custom_fields)
 
 @app.route('/settings/add_contact_type', methods=['POST'])
 @login_required
@@ -480,7 +492,7 @@ def delete_setting(item_type, item_id):
         db.session.delete(item)
         db.session.commit()
     return redirect(url_for('index') if item_type == 'saved_view' else url_for('settings'))
-    
+
 @app.route('/settings/add_custom_field', methods=['POST'])
 @login_required
 @admin_required
@@ -490,15 +502,13 @@ def add_custom_field():
         temp_identifier = name.lower()
         temp_identifier = re.sub(r'\s+', '_', temp_identifier)
         api_id = 'custom_' + re.sub(r'[^a-zA-Z0-9_]', '', temp_identifier)
-
         if CustomField.query.filter_by(api_identifier=api_id).first():
             flash(f"שדה עם מזהה API דומה ('{api_id}') כבר קיים. אנא בחר שם אחר.", "danger")
-            return redirect(url_for('settings'))
-
-        new_field = CustomField(name=name, api_identifier=api_id)
-        db.session.add(new_field)
-        db.session.commit()
-        flash("השדה המותאם נוצר בהצלחה!", "success")
+        else:
+            new_field = CustomField(name=name, api_identifier=api_id)
+            db.session.add(new_field)
+            db.session.commit()
+            flash("השדה המותאם נוצר בהצלחה!", "success")
     return redirect(url_for('settings'))
 
 @app.route('/settings/edit/custom_field/<int:field_id>', methods=['POST'])
@@ -520,7 +530,6 @@ def delete_custom_field(field_id):
     db.session.commit()
     return redirect(url_for('settings'))
 
-# --- נתיבי ניהול משתמשים ---
 @app.route('/settings/users')
 @login_required
 @admin_required
@@ -556,7 +565,6 @@ def delete_user(user_id):
         flash(f'המשתמש {user_to_delete.email} נמחק בהצלחה.', 'success')
     return redirect(url_for('manage_users'))
 
-# --- נתיבי API וחיבורים חיצוניים ---
 def create_client_secret_file():
     client_id = os.environ.get('GOOGLE_CLIENT_ID')
     client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
@@ -631,23 +639,14 @@ def handle_lead():
         name = data.get('name') or email or phone
         contact = Contact(name=name, email=email, phone=phone)
         db.session.add(contact)
-        db.session.commit()
+        db.session.flush() # Ensure contact has an ID before creating activity
     activity_description = f"פנייה חדשה ממקור: {data.get('source', 'לא ידוע')}\n{data.get('message', '')}"
     new_activity = Activity(description=activity_description, source=data.get('source', 'לא ידוע'), contact_id=contact.id)
     db.session.add(new_activity)
     db.session.commit()
     return jsonify({"success": True, "message": "Lead processed successfully.", "contact_id": contact.id}), 201
 
-# ===================================================================
-# 6. לוגיקה לסנכרון ברקע (לשימוש עם Celery/APScheduler/Cron)
-# ===================================================================
-
 def run_full_gmail_sync():
-    """
-    סורק את כל חשבונות ה-Gmail המחוברים, מוסיף פעילויות לאנשי קשר קיימים,
-    ויוצר אנשי קשר חדשים ממיילים לא מוכרים.
-    יש להריץ פונקציה זו מתוך קונטקסט של האפליקציה.
-    """
     with app.app_context():
         users_with_gmail = User.query.filter(User.gmail_credentials_json.isnot(None)).all()
         print(f"מתחיל סנכרון רקע. נמצאו {len(users_with_gmail)} משתמשים עם חיבור Gmail.")
