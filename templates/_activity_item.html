@@ -1,0 +1,44 @@
+<div class="activity-item 
+    {% if 'נכנס' in activity.source %}incoming{% elif 'יוצא' in activity.source or 'Sent' in activity.source %}outgoing{% endif %}">
+    
+    <div class="activity-header">
+        <div class="activity-title">
+            <span class="activity-icon">
+                {% if 'נכנס' in activity.source %}↓{% else %}↑{% endif %}
+            </span>
+            <a href="{{ url_for('contact_detail', contact_id=activity.contact_id) }}" class="contact-name">
+                {{ activity.contact.name if activity.contact else contact.name }}
+            </a>
+        </div>
+        <div class="activity-meta">
+            <span class="source-tag 
+                {% if 'מערכת' in activity.source or 'Sent' in activity.source %}source-crm{% else %}source-gmail{% endif %}">
+                {% if 'מערכת' in activity.source or 'Sent' in activity.source %}
+                    נשלח מהמערכת
+                {% elif 'Gmail' in activity.source %}
+                    סונכרן מ-Gmail
+                {% else %}
+                    {{ activity.source }}
+                {% endif %}
+            </span>
+            <span class="timestamp">{{ activity.timestamp | to_local_time }}</span>
+        </div>
+    </div>
+
+    {% if activity.email_subject %}
+        <h4 class="email-subject">{{ activity.email_subject }}</h4>
+        <div class="email-body">
+            {{ activity.email_body_html | safe }}
+        </div>
+        {% if activity.email_quoted_text %}
+        <details class="quoted-text">
+            <summary>הצג היסטוריית התכתבות</summary>
+            <pre>{{ activity.email_quoted_text }}</pre>
+        </details>
+        {% endif %}
+    {% else %}
+        <div class="activity-body">
+            {{ activity.description | nl2br }}
+        </div>
+    {% endif %}
+</div>

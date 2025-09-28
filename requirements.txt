@@ -11,3 +11,4 @@ google-auth-httplib2
 pytz
 google-auth-oauthlib
 Flask-Migrate
+bleach

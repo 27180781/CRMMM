@@ -3,6 +3,7 @@
 {% block head %}
 {{ super() }}
 <style>
+    .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .tabs { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 20px; }
     .tab-link { padding: 10px 20px; cursor: pointer; border: none; background: none; font-size: 1.1em; }
     .tab-link.active { border-bottom: 2px solid var(--primary-color); font-weight: bold; }
@@ -14,7 +15,6 @@
 {% block content %}
 <div class="header-flex">
     <h1>כרטיס לקוח: {{ contact.name }}</h1>
-    <button type="button" id="edit-details-btn" class="btn btn-primary">ערוך פרטים</button>
 </div>
 
 <div class="tabs">
@@ -25,7 +25,11 @@
 
 <div id="details" class="tab-content active">
     <div class="card">
-        <h2>פרטי איש קשר</h2>
+        <div class="header-flex">
+            <h2>פרטי איש קשר</h2>
+            <button type="button" id="edit-details-btn" class="btn btn-primary">ערוך פרטים</button>
+        </div>
+        
         <form action="{{ url_for('edit_contact', contact_id=contact.id) }}" method="post" id="edit-contact-form">
             <fieldset id="contact-fieldset" disabled style="border:none; padding:0;">
                 <p><strong>שם:</strong> <input type="text" name="name" value="{{ contact.name }}"></p>
@@ -74,22 +78,19 @@
             <button type="submit" class="btn btn-primary" style="margin-top: 10px;">הוסף תיעוד</button>
         </form>
     </div>
+    
     <div class="card">
-<div style="margin-bottom: 20px;">
-    <a href="{{ url_for('sync_gmail', contact_id=contact.id) }}" class="btn btn-secondary">סנכרן מיילים נכנסים מ-Gmail</a>
-</div>
+        <div style="margin-bottom: 20px;">
+            <a href="{{ url_for('sync_gmail', contact_id=contact.id) }}" class="btn btn-secondary">סנכרן את כל המיילים עם איש קשר זה</a>
+        </div>
         <h2>היסטוריית פעילויות</h2>
-        {% for activity in activities %}
-            <div class="activity-history-item">
-                <p>
-                    <strong>תאריך:</strong> {{ activity.timestamp | to_local_time }}
-                    {% if activity.activity_type %} | <strong>סוג:</strong> {{ activity.activity_type.name }} {% endif %}
-                </p>
-                <p>{{ activity.description | nl2br }}</p>
-            </div>
-        {% else %}
-            <p>אין עדיין פעילויות מתועדות.</p>
-        {% endfor %}
+        <div class="activity-feed">
+            {% for activity in activities %}
+                {% include '_activity_item.html' %}
+            {% else %}
+                <p>אין עדיין פעילויות מתועדות.</p>
+            {% endfor %}
+        </div>
     </div>
 </div>
 
@@ -146,7 +147,7 @@
     editBtn.addEventListener('click', () => {
         fieldset.disabled = !fieldset.disabled;
         saveBtn.style.display = fieldset.disabled ? 'none' : 'inline-block';
-        editBtn.textContent = fieldset.disabled ? 'עריכה' : 'בטל עריכה';
+        editBtn.textContent = fieldset.disabled ? 'ערוך פרטים' : 'בטל עריכה';
     });
 
     // JS לטעינה דינמית של סטטוסים

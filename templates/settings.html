@@ -7,7 +7,17 @@
   .add-form { display: flex; gap: 10px; margin-bottom: 20px; }
   .add-form input { flex-grow: 1; margin-bottom: 0; }
   .item-list { list-style: none; padding: 0; }
-  .item-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #eee; }
+  .item-list li { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 10px 5px; 
+    border-bottom: 1px solid #eee; 
+  }
+  /* Style for the container of name and ID */
+  .item-details {
+      flex-grow: 1;
+  }
   .item-actions { display: flex; gap: 10px; }
   .edit-form { display: none; gap: 10px; width: 100%; }
 </style>
@@ -15,8 +25,6 @@
 
 {% block content %}
 <h1>הגדרות מערכת</h1>
-
-<div class="card settings-section">
 
 <div class="card settings-section">
     <h2>הגדרות פרופיל</h2>
@@ -33,7 +41,9 @@
     <ul class="item-list">
         {% for c_type in contact_types %}
         <li>
-            <span class="item-name">{{ c_type.name }}</span>
+            <div class="item-details">
+                <span class="item-name">{{ c_type.name }}</span>
+            </div>
             <form class="edit-form" action="{{ url_for('edit_setting', item_type='contact_type', item_id=c_type.id) }}" method="post">
                 <input type="text" name="name" value="{{ c_type.name }}" required>
                 <button type="submit" class="btn btn-success">שמור</button>
@@ -60,7 +70,9 @@
     <ul class="item-list">
         {% for status in c_type.statuses %}
         <li>
-            <span class="item-name">{{ status.name }}</span>
+            <div class="item-details">
+                <span class="item-name">{{ status.name }}</span>
+            </div>
             <form class="edit-form" action="{{ url_for('edit_setting', item_type='status', item_id=status.id) }}" method="post">
                 <input type="text" name="name" value="{{ status.name }}" required>
                 <button type="submit" class="btn btn-success">שמור</button>
@@ -86,7 +98,9 @@
     <ul class="item-list">
         {% for a_type in activity_types %}
         <li>
-            <span class="item-name">{{ a_type.name }}</span>
+            <div class="item-details">
+                <span class="item-name">{{ a_type.name }}</span>
+            </div>
             <form class="edit-form" action="{{ url_for('edit_setting', item_type='activity_type', item_id=a_type.id) }}" method="post">
                 <input type="text" name="name" value="{{ a_type.name }}" required>
                 <button type="submit" class="btn btn-success">שמור</button>
@@ -101,19 +115,6 @@
         {% endfor %}
     </ul>
 </div>
-<div class="card settings-section">
-    <h2>ניהול כללי</h2>
-    <a href="{{ url_for('manage_users') }}" class="btn btn-primary">ניהול משתמשים והרשאות</a>
-</div>
-<div class="card settings-section">
-    <h2>אינטגרציות</h2>
-    {% if current_user.gmail_credentials_json %}
-        <p style="color: green;"><strong>חשבון Gmail מחובר.</strong></p>
-    {% else %}
-        <p>חבר את חשבון ה-Gmail שלך כדי לשלוח ולסנכרן מיילים.</p>
-        <a href="{{ url_for('authorize_gmail') }}" class="btn btn-primary">חבר חשבון Gmail</a>
-    {% endif %}
-</div>
 
 <div class="card settings-section">
     <h2>ניהול שדות מותאמים אישית</h2>
@@ -124,14 +125,16 @@
     <ul class="item-list">
         {% for field in custom_fields %}
         <li>
-            <span class="item-name">{{ field.name }}</span>
-            {# --- שורה חדשה להצגת המזהה --- #}
-            <small style="color: #6c757d; display: block;">API ID: <code>{{ field.api_identifier }}</code></small>
-        </div>
+            <div class="item-details">
+                <span class="item-name">{{ field.name }}</span>
+                <small style="color: #6c757d; display: block; margin-top: 4px;">API ID: <code>{{ field.api_identifier }}</code></small>
+            </div>
+            
             <form class="edit-form" action="{{ url_for('edit_custom_field', field_id=field.id) }}" method="post">
                 <input type="text" name="name" value="{{ field.name }}" required>
                 <button type="submit" class="btn btn-success">שמור</button>
             </form>
+
             <div class="item-actions">
                 <button type="button" class="edit-btn">ערוך</button>
                 <form action="{{ url_for('delete_custom_field', field_id=field.id) }}" method="post" onsubmit="return confirm('האם אתה בטוח?');">
@@ -143,11 +146,27 @@
     </ul>
 </div>
 
+<div class="card settings-section">
+    <h2>אינטגרציות</h2>
+    {% if current_user.gmail_credentials_json %}
+        <p style="color: green;"><strong>חשבון Gmail מחובר.</strong></p>
+    {% else %}
+        <p>חבר את חשבון ה-Gmail שלך כדי לשלוח ולסנכרן מיילים.</p>
+        <a href="{{ url_for('authorize_gmail') }}" class="btn btn-primary">חבר חשבון Gmail</a>
+    {% endif %}
+</div>
+
+<div class="card settings-section">
+    <h2>ניהול כללי</h2>
+    <a href="{{ url_for('manage_users') }}" class="btn btn-primary">ניהול משתמשים והרשאות</a>
+</div>
+
 <script>
 document.querySelectorAll('.edit-btn').forEach(button => {
     button.addEventListener('click', event => {
         const li = event.target.closest('li');
-        li.querySelector('.item-name').style.display = 'none';
+        // מחביאים את הדיב שמכיל את הפרטים, במקום רק את השם
+        li.querySelector('.item-details').style.display = 'none'; 
         li.querySelector('.item-actions').style.display = 'none';
         li.querySelector('.edit-form').style.display = 'flex';
     });
