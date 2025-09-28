@@ -14,7 +14,6 @@
     padding: 10px 5px; 
     border-bottom: 1px solid #eee; 
   }
-  /* Style for the container of name and ID */
   .item-details {
       flex-grow: 1;
   }
@@ -150,7 +149,10 @@
     <h2>אינטגרציות</h2>
     {% if current_user.gmail_credentials_json %}
         <p style="color: green;"><strong>חשבון Gmail מחובר.</strong></p>
-    {% else %}
+        <form action="{{ url_for('disconnect_gmail') }}" method="post" onsubmit="return confirm('האם אתה בטוח שברצונך לנתק את חשבון ה-Gmail? פעולה זו תמחק את ההרשאות ותפסיק את סנכרון המיילים.');">
+            <button type="submit" class="btn btn-danger">נתק את חשבון Gmail</button>
+        </form>
+        {% else %}
         <p>חבר את חשבון ה-Gmail שלך כדי לשלוח ולסנכרן מיילים.</p>
         <a href="{{ url_for('authorize_gmail') }}" class="btn btn-primary">חבר חשבון Gmail</a>
     {% endif %}
@@ -165,7 +167,6 @@
 document.querySelectorAll('.edit-btn').forEach(button => {
     button.addEventListener('click', event => {
         const li = event.target.closest('li');
-        // מחביאים את הדיב שמכיל את הפרטים, במקום רק את השם
         li.querySelector('.item-details').style.display = 'none'; 
         li.querySelector('.item-actions').style.display = 'none';
         li.querySelector('.edit-form').style.display = 'flex';
