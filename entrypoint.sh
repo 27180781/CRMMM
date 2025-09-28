@@ -23,4 +23,4 @@ flask db upgrade
 
 # הפעל את שרת האפליקציה
 echo "Starting Gunicorn server..."
-exec gunicorn --bind 0.0.0.0:80 app:app
+exec gunicorn --bind 0.0.0.0:80 --forwarded-allow-ips="*" app:app
