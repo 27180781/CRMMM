@@ -11,7 +11,6 @@ import bleach
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
-# --- יבוא חדש וחשוב לחידוש הרשאות ---
 from google.auth.transport.requests import Request
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, abort, session
@@ -365,15 +364,30 @@ def communications():
     all_activities = db.session.query(Activity, Contact).join(Contact).order_by(Activity.timestamp.desc()).all()
     return render_template('communications.html', all_activities=all_activities)
 
+# --- התיקון כאן ---
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add_contact():
     if request.method == 'POST':
-        new_contact = Contact(name=request.form['name'], email=request.form['email'], phone=request.form['phone'])
+        email = request.form.get('email')
+        # בדוק אם יש אימייל ואם הוא כבר קיים במערכת
+        if email:
+            existing_contact = Contact.query.filter(Contact.email.ilike(email)).first()
+            if existing_contact:
+                flash(f'איש קשר עם האימייל "{email}" כבר קיים במערכת.', 'danger')
+                return redirect(url_for('add_contact')) # חזור לטופס
+
+        # אם אין כפילות, המשך כרגיל
+        new_contact = Contact(
+            name=request.form['name'],
+            email=email,
+            phone=request.form['phone']
+        )
         db.session.add(new_contact)
         db.session.commit()
         flash('איש הקשר נוסף בהצלחה!', 'success')
         return redirect(url_for('index'))
+        
     return render_template('add_contact.html')
 
 @app.route('/contact/<int:contact_id>')
